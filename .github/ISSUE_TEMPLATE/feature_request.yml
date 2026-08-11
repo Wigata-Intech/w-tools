@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose an API addition or change. Features need a maintainer's go-ahead before a PR — this issue is that conversation.
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - logger
+        - new package proposal
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you do today? Describe the problem, not the solution — the solution comes next.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: What would the code look like for a user? Sketch the signature or usage.
+      render: go
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+      description: The workaround, if any. Helps us judge how sharp the problem is.
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Fit
+      options:
+        - label: This needs no third-party dependency (repo law — if it does, say so above and make the case)
+          required: true

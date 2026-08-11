@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [logger]
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    env:
+      GOWORK: "off" # every module must stand alone — same proof as `make build`
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then echo "gofmt needed on:"; echo "$out"; exit 1; fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          working-directory: ${{ matrix.module }}
+
+      - name: build (CGO off)
+        run: CGO_ENABLED=0 go build ./...
+
+      - name: test (race)
+        run: go test -race ./...
+
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

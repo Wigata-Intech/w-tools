@@ -1,0 +1,28 @@
+# golangci-lint v2 config (tool v2.x — config format version below is the schema, not the tool version).
+# Posture: everything on, then subtract with a written reason. An undocumented disable is a smell.
+version: "2"
+
+linters:
+  default: all
+  disable:
+    # Needs an import-allowlist config to do anything; zero-dependency is already repo law, enforced in review.
+    - depguard
+    # Forces every struct field to be set explicitly — fights the zero-value Config ergonomics slog-style APIs rely on.
+    - exhaustruct
+    # Bans short identifiers; idiomatic Go uses them (i, b, tt).
+    - varnamelen
+    # Whitespace/blank-line opinions that fight house formatting.
+    - wsl
+    - nlreturn
+    # Line length — gofmt governs formatting here.
+    - lll
+    # Arbitrary size caps; simplicity is enforced by human review, not thresholds.
+    - funlen
+    - cyclop
+    - gocognit
+    # Magic-number detection would drown masking math and level constants in nolint noise.
+    - mnd
+    # Forces t.Parallel() on every test; our ordered table style makes this pure noise.
+    - paralleltest
+    # Bans dynamic errors outright — too dogmatic even for a library. Revisit at v1.0.0.
+    - err113

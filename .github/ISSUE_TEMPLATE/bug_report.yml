@@ -1,0 +1,48 @@
+name: Bug report
+description: Something behaves wrongly — a failing case beats a long description.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - logger
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: "logger/v0.1.0, or commit hash"
+    validations:
+      required: true
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version
+      placeholder: "go1.26.5 (from `go version`)"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Smallest possible code that shows the problem. A failing test is perfect.
+      render: go
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What should happen, and what happens instead. Paste output exactly.
+    validations:
+      required: true
+  - type: checkboxes
+    id: human
+    attributes:
+      label: Verification
+      options:
+        - label: I ran this reproduction myself and verified the behavior (see AI_POLICY.md)
+          required: true

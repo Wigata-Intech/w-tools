@@ -1,0 +1,18 @@
+# Local toolchain pins (asdf/mise) — contributors pin their own
+.tool-versions
+
+# Build and test output
+bin/
+dist/
+*.test
+*.out
+*.coverprofile
+coverage.*
+
+# Editor and OS noise
+.idea/
+.vscode/
+.DS_Store
+
+# Local env
+.env

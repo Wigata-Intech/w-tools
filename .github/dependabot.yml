@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Keeps GitHub Actions pinned versions fresh — the only real dependency surface this repo has.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Zero runtime deps by policy, so this stays quiet — it exists to watch the Go directive
+  # and to scream if a dependency ever sneaks into a go.mod.
+  - package-ecosystem: "gomod"
+    directory: "/logger"
+    schedule:
+      interval: "weekly"
