@@ -24,7 +24,7 @@ Instructions for AI coding agents working in this repository. Human policy on AI
 ```go
 tests := []struct {
     name     string
-    mockFunc func(t *testing.T) // nil unless needed
+    mockFunc func(t *testing.T) // include this field only when at least one case uses it; omit it otherwise
     input    inputType
     expected expectedType
 }{ /* ... */ }
@@ -49,5 +49,6 @@ Never claim a check you didn't run. If a tool is missing locally, say so — don
 w-tools/
 ├── go.work          # committed on purpose — do not gitignore it
 ├── logger/          # slog wrapper with key-based redaction (see logger/README.md)
+├── httpx/           # net/http wrapper: server, groups, JSON + RFC 9457 (see httpx/README.md)
 └── x/               # experimental packages (none yet)
 ```

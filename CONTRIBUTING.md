@@ -68,6 +68,26 @@ Godoc is the documentation — what you write in comments is what [pkg.go.dev](h
 - Runnable `Example` functions (`func ExampleNew()` in a `_test.go` file) render as executable examples on pkg.go.dev *and* compile in CI — examples that can't rot.
 - Deprecations use the magic comment: `// Deprecated: use Wrap instead.` — tooling and pkg.go.dev both honor it.
 
+### Package README template
+
+Every module's `README.md` follows the same human-first shape — a reader should learn what it is, what pain it removes, and how to use it, in that order:
+
+```markdown
+# <package>
+> One-line pitch — the whole value in one sentence.
+
+**Status:** where the package is on the v0 → v1 road, and what semver means right now.
+
+## TL;DR                      3–5 bullets: what you get, no prose
+## What problem this solves   human prose — the pain first, then how the package removes it
+## How it solves it           minimal working code, plus a pointer to examples/
+## Why it matters             what this buys the reader: standards, guarantees, no lock-in
+## What it costs              the honest price — benchmark table when measured, structural notes before that
+## The promises               the guarantees, as of the current version
+```
+
+No per-package license section — the repository [LICENSE](LICENSE) covers every module, and pkg.go.dev detects and displays it on its own.
+
 ## Commits and the DCO
 
 Every commit must be signed off:
