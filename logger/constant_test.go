@@ -10,7 +10,6 @@ import (
 func TestConstants(t *testing.T) {
 	tests := []struct {
 		name     string
-		mockFunc func(t *testing.T)
 		input    any
 		expected any
 	}{

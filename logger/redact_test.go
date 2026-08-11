@@ -74,9 +74,8 @@ func TestWrap(t *testing.T) {
 		Masked:   map[string]logger.Mask{"card_number": {ShowFirst: 6, ShowLast: 4}},
 	}
 	tests := []struct {
-		name     string
-		mockFunc func(t *testing.T)
-		input    struct {
+		name  string
+		input struct {
 			rules logger.RedactConfig
 			logFn func(*slog.Logger)
 		}
@@ -353,7 +352,6 @@ func TestWrap(t *testing.T) {
 func TestWrapNoRules(t *testing.T) {
 	tests := []struct {
 		name     string
-		mockFunc func(t *testing.T)
 		input    logger.RedactConfig
 		expected bool // true = Wrap must return the inner handler unchanged
 	}{

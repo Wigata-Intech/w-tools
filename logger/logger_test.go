@@ -25,7 +25,6 @@ func fields(t *testing.T, buf *bytes.Buffer) map[string]any {
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name     string
-		mockFunc func(t *testing.T)
 		input    logger.Config
 		expected map[string]any // keys that must be present with these values; "-key" asserts absence
 	}{
@@ -76,7 +75,6 @@ func TestNew(t *testing.T) {
 func TestNewDefaultWriter(t *testing.T) {
 	tests := []struct {
 		name     string
-		mockFunc func(t *testing.T)
 		input    logger.Config
 		expected bool // logger constructed
 	}{
@@ -94,7 +92,6 @@ func TestNewDefaultWriter(t *testing.T) {
 func TestParseLevel(t *testing.T) {
 	tests := []struct {
 		name     string
-		mockFunc func(t *testing.T)
 		input    string
 		expected slog.Level
 	}{
@@ -119,9 +116,8 @@ func TestParseLevel(t *testing.T) {
 func TestLoggerLevels(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
-		name     string
-		mockFunc func(t *testing.T)
-		input    struct {
+		name  string
+		input struct {
 			level slog.Level
 			logFn func(*logger.Logger)
 		}
@@ -197,7 +193,6 @@ func TestLoggerLevels(t *testing.T) {
 func TestLoggerPanic(t *testing.T) {
 	tests := []struct {
 		name     string
-		mockFunc func(t *testing.T)
 		input    string // panic message
 		expected string // level rendered in the record written before panicking
 	}{
@@ -224,7 +219,6 @@ func TestLoggerPanic(t *testing.T) {
 func TestLoggerWith(t *testing.T) {
 	tests := []struct {
 		name     string
-		mockFunc func(t *testing.T)
 		input    []any
 		expected map[string]any
 	}{
@@ -259,9 +253,8 @@ func TestLoggerWith(t *testing.T) {
 
 func TestLoggerSlog(t *testing.T) {
 	tests := []struct {
-		name     string
-		mockFunc func(t *testing.T)
-		input    struct {
+		name  string
+		input struct {
 			cfg   logger.Config
 			logFn func(*slog.Logger)
 		}

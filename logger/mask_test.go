@@ -30,9 +30,8 @@ func maskVia(t *testing.T, m logger.Mask, value any) string {
 
 func TestMaskString(t *testing.T) {
 	tests := []struct {
-		name     string
-		mockFunc func(t *testing.T)
-		input    struct {
+		name  string
+		input struct {
 			mask  logger.Mask
 			value any
 		}
