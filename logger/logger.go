@@ -45,11 +45,11 @@ func New(cfg Config) *Logger {
 	}
 	level := new(slog.LevelVar)
 	level.Set(cfg.Level)
-	h := slog.NewJSONHandler(w, &slog.HandlerOptions{
-		Level:       level,
-		ReplaceAttr: renameLevel,
-	})
-	l := slog.New(Wrap(h, cfg.Redact))
+	split := &splitHandler{
+		fast:   slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level}),
+		rename: slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level, ReplaceAttr: renameLevel}),
+	}
+	s := slog.New(Wrap(split, cfg.Redact))
 	var base []any
 	for _, f := range [...]struct{ key, val string }{
 		{"env", cfg.Env}, {"version", cfg.Version}, {"app", cfg.App}, {"protocol", string(cfg.Protocol)},
@@ -59,9 +59,52 @@ func New(cfg Config) *Logger {
 		}
 	}
 	if len(base) > 0 {
-		l = l.With(base...)
+		s = s.With(base...)
 	}
-	return &Logger{s: l, level: level}
+	return &Logger{s: s, level: level}
+}
+
+// splitHandler exists because of a slog quirk: the only way to print "PANIC"
+// instead of "ERROR+4" is a ReplaceAttr, and any ReplaceAttr switches slog
+// off its zero-allocation path for every record. So normal records go to a
+// handler without one, and only PANIC records pay for the rename.
+// The fields stay concrete (*slog.JSONHandler, not slog.Handler) so these
+// calls devirtualize; interface fields measured ~20% slower per record.
+type splitHandler struct {
+	fast   *slog.JSONHandler
+	rename *slog.JSONHandler
+}
+
+func (h *splitHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.fast.Enabled(ctx, level)
+}
+
+func (h *splitHandler) Handle(ctx context.Context, rec slog.Record) error {
+	if rec.Level >= LevelPanic {
+		return h.rename.Handle(ctx, rec)
+	}
+	return h.fast.Handle(ctx, rec)
+}
+
+// The bare type assertions below are safe: JSONHandler.WithAttrs and
+// WithGroup return *JSONHandler and have since slog shipped. A comma-ok
+// fallback would be dead code no test can reach; if a future toolchain ever
+// changes the concrete type, every test panics on the first log line.
+
+//nolint:forcetypeassert
+func (h *splitHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &splitHandler{
+		fast:   h.fast.WithAttrs(attrs).(*slog.JSONHandler),
+		rename: h.rename.WithAttrs(attrs).(*slog.JSONHandler),
+	}
+}
+
+//nolint:forcetypeassert
+func (h *splitHandler) WithGroup(name string) slog.Handler {
+	return &splitHandler{
+		fast:   h.fast.WithGroup(name).(*slog.JSONHandler),
+		rename: h.rename.WithGroup(name).(*slog.JSONHandler),
+	}
 }
 
 // ParseLevel converts a level name — "debug", "info", "warn", "error" or

@@ -53,6 +53,22 @@ log := slog.New(logger.Wrap(existingHandler, redactCfg))
 
 Runnable programs live in [`examples/`](examples/): [`payment`](examples/payment/main.go) shows PCI-style card masking on a whole struct, [`login`](examples/login/main.go) shows credentials caught in maps, `With`-bound args, and headers. `go run ./examples/payment` and read the output.
 
+## What logging costs
+
+Measured with `make bench` (Apple Silicon, 6-attr record, output discarded). Read it as a price list — each row is a situation you might be in:
+
+| Situation | ns/op | allocs/op | Meaning for you |
+| --------- | ----- | --------- | --------------- |
+| Raw `log/slog`, no wrapper | ~690 | 0 | The baseline |
+| `logger`, no redaction rules | ~700 | 0 | **The wrapper is free** — parity within run-to-run variance (±5%), zero allocations |
+| Rules configured, record has no sensitive keys | ~900 | 1 | Your normal traffic with redaction armed: ~+25% |
+| Redacting/masking top-level keys | ~980 | 4 | A protected log line costs about 1µs |
+| Sensitive struct, nested two deep | ~2250 | 29 | Reflection is the expensive path — 3× baseline |
+
+The practical takeaway from the last two rows: on your hottest code paths, pass sensitive values as top-level keys (`"card_number", pan`) rather than logging whole structs — identical protection, a third of the cost. Struct logging is fine everywhere else.
+
+And the security claim is fuzz-tested, not asserted: 10M+ generated inputs — broken UTF-8, CJK, extreme masking bounds, JSON metacharacters — produced zero panics and zero records where a redacted value survived.
+
 ## The promises (as of v0.1.0)
 
 - **When in doubt, it hides.** A value that can't be processed logs as `[UNLOGGABLE]` instead of leaking raw. Short values mask entirely rather than revealing "most" of themselves.

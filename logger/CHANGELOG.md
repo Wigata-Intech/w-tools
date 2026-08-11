@@ -12,3 +12,13 @@ All notable changes to `logger`. Format follows [Keep a Changelog](https://keepa
 - `Wrap(handler, RedactConfig)` to layer redaction over any existing `slog.Handler`
 - `context.Context` as the first parameter of every log method, reserved for future enrichment
 - Typed `Protocol` with common constants; `Level slog.Level` with `ParseLevel` for string wiring
+- Benchmark suite (`make bench`): raw-slog baseline, no-rules pass-through, copy-on-write walk, top-level and struct redaction — all with allocation reporting
+- Fuzz tests (`make fuzz`): mask invariants (never panic, rune count preserved, never over-reveal) and full-pipeline redaction (valid JSON, redacted values never survive)
+
+### Changed
+
+- The hot path carries no `ReplaceAttr`: an internal split handler with concrete `*slog.JSONHandler` fields routes only PANIC records through the level-renaming handler. Result: no-rules logging is allocation-free at parity with raw `slog` (previously +45% and 3 allocs/op — a non-nil `ReplaceAttr` disables slog's fast paths for every record)
+
+### Fixed
+
+- Masking bounds overflow: `ShowFirst`/`ShowLast` values near `math.MaxInt` could wrap negative, slip past the full-mask guard, and panic — now overflow-safe and fail-closed

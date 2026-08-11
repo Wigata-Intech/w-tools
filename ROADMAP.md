@@ -11,7 +11,8 @@ Where each package is and where it's going. ✅ delivered · 🚧 agreed and in 
 | ✅ | `Wrap` for adopting only the redaction layer over an existing handler |
 | ✅ | `ctx` parameter on every log method (reserved for enrichment) |
 | ✅ | 100% test coverage, race-clean, all-linters-on, govulncheck-clean |
-| 🚧 | Internal benchmarks (`b.ReportAllocs()`) and fuzzing of the mask function — before `logger/v0.1.0` |
+| ✅ | Internal benchmarks — no-rules path measured at parity with raw slog, zero allocations |
+| ✅ | Fuzzing: mask invariants and full-pipeline redaction, 10M+ executions clean |
 | 🚧 | First production adoption in a Wigata InTech service — gates `v1.0.0` |
 | 💡 | Comparative benchmarks vs zap, zerolog, logrus — README material, after the API freezes |
 | 💡 | Automatic enrichment from `ctx` — trace id and friends, key naming to be decided |
