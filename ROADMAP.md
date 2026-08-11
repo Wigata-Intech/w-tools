@@ -12,7 +12,7 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 | ✅ | JSON respond/bind with RFC 9457 `application/problem+json` errors, swappable via `ErrorWriter` — merged via #5 |
 | 🚧 | `ErrorMap` — register domain-error → `Problem` mappings once at startup; handlers respond with one line |
 | ✅ | Middleware: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` (buffer-pooled, opt-in body capture) — fuzzers on the two wire-input parsers |
-| 🚧 | Gate middleware: `CORS`, `RateLimit` (pluggable `Limiter`) |
+| ✅ | Gate middleware: `CORS` (Fetch-spec preflights, boot-time misconfig panic) and `RateLimit` (bounded-memory token bucket, pluggable `Limiter`) |
 | 🚧 | BFF rendering: structural `Renderer` interface — templ native, `html/template` adapter |
 | 🚧 | Outbound client: tuned pooling, mandatory timeout, circuit-breaker hook, traceparent propagation |
 | 🚧 | `x/circuitbreaker`: three-state breaker implementing the client's `Breaker` hook — experimental |

@@ -9,7 +9,7 @@
 - A server that's production-safe by default: every timeout on, graceful shutdown in one call
 - Route groups with shared prefixes and middleware over the stdlib `ServeMux` — every method routable, including RFC 10008 `QUERY`
 - JSON in and out: size-capped `Bind`, and errors as RFC 9457 `application/problem+json` by default
-- A standard middleware set: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction
+- A standard middleware set: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction — plus the gates: `CORS` and `RateLimit` (pluggable `Limiter`)
 - Handlers stay plain `http.HandlerFunc` — nothing to learn, nothing to eject from
 - Zero dependencies, permanently
 
@@ -80,4 +80,4 @@ As of today, v0 unreleased:
 - **Fail loud at boot, not silent in production.** Misregistration panics at startup exactly like `ServeMux`; nothing degrades silently.
 - **Zero dependencies.** The `go.mod` stays empty — that's a feature, and it's permanent.
 
-Coming next, in order: the gate middleware (`CORS`, `RateLimit`), BFF HTML rendering, and an outbound client with tuned pooling and a circuit-breaker hook — the full plan is in [ROADMAP.md](../ROADMAP.md).
+Coming next, in order: BFF HTML rendering, `ErrorMap`, and an outbound client with tuned pooling and a circuit-breaker hook — the full plan is in [ROADMAP.md](../ROADMAP.md).

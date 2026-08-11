@@ -31,6 +31,7 @@ tests := []struct {
 ```
 
 - Cases ordered to mirror the code top-to-bottom, positive before negative. Insert new cases where the new logic sits, don't append.
+- A case whose shape differs from the table's (needs goroutines, recover, mid-case clock moves, bespoke writers) becomes a named `t.Run` subtest after the table — never a table case dragging one-off fields every other case must carry dead.
 - Concurrent cases for anything shared. Assert specific errors — never weaken an assertion to make a test pass.
 
 ## Verification gate
