@@ -18,6 +18,7 @@
 
 | Package | What it does | Status |
 | ------- | ------------ | ------ |
+| [`httpx`](httpx/) | `net/http` wrapper: server with production timeouts, route groups, all methods incl. RFC 10008 `QUERY`, RFC 9457 errors | in development |
 | [`logger`](logger/) | `log/slog` wrapper: JSON-first, service metadata on every line, compliance-grade key redaction and masking | v0.1.0 |
 
 Nothing lives under `x/` yet. When it does, treat it as a sharp tool with no handle: an `x/` package is an experiment, not a promise — it can fail its experiment and be deleted outright, so never build anything load-bearing on one. Graduation to the root, under a new import path, is the only way an `x/` package earns stability.

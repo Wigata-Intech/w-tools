@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: [logger]
+        module: [httpx, logger]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
