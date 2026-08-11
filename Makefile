@@ -4,7 +4,7 @@
 
 MODULES := logger
 
-.PHONY: check fmt vet lint build test vuln cover
+.PHONY: check fmt vet lint build test vuln cover bench fuzz
 
 check: fmt vet lint build test vuln
 	@echo "all checks passed"
@@ -29,3 +29,11 @@ cover:
 
 vuln:
 	@for m in $(MODULES); do (cd $$m && govulncheck ./...) || exit 1; done
+
+# Informational, not part of `check` — regressions surface in review, not as red builds.
+bench:
+	@for m in $(MODULES); do (cd $$m && go test -bench=. -benchmem -run='^$$' $$(go list ./... | grep -v /examples/)) || exit 1; done
+
+# Time-boxed; per-package fuzz targets, extended as packages gain fuzzers.
+fuzz:
+	@(cd logger && go test -fuzz=FuzzMaskString -fuzztime=15s -run='^$$' . && go test -fuzz=FuzzRedact -fuzztime=15s -run='^$$' .)

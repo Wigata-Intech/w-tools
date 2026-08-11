@@ -47,5 +47,8 @@ jobs:
       - name: test (race)
         run: go test -race -cover $(go list ./... | grep -v /examples/)
 
+      - name: bench (smoke)
+        run: go test -bench=. -benchtime=1x -run='^$' $(go list ./... | grep -v /examples/)
+
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

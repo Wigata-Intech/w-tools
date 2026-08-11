@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"math"
 	"testing"
 
 	"github.com/Wigata-Intech/w-tools/logger"
@@ -84,6 +85,14 @@ func TestMaskString(t *testing.T) {
 				value any
 			}{logger.Mask{ShowFirst: 2, ShowLast: 2}, "abcd"},
 			expected: "****",
+		},
+		{
+			name: "huge bounds mask everything without overflow",
+			input: struct {
+				mask  logger.Mask
+				value any
+			}{logger.Mask{ShowFirst: math.MaxInt, ShowLast: math.MaxInt}, "abc"},
+			expected: "***",
 		},
 		{
 			name: "shorter than bounds masks everything",

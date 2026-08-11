@@ -261,24 +261,44 @@ func TestLoggerSlog(t *testing.T) {
 	tests := []struct {
 		name     string
 		mockFunc func(t *testing.T)
-		input    logger.Config
+		input    struct {
+			cfg   logger.Config
+			logFn func(*slog.Logger)
+		}
 		expected map[string]any
 	}{
 		{
-			name:     "escape hatch logs through the same pipeline",
-			input:    logger.Config{Redact: logger.RedactConfig{Redacted: []string{"password"}}},
+			name: "escape hatch logs through the same pipeline",
+			input: struct {
+				cfg   logger.Config
+				logFn func(*slog.Logger)
+			}{
+				logger.Config{Redact: logger.RedactConfig{Redacted: []string{"password"}}},
+				func(s *slog.Logger) { s.Info("m", "password", "hunter2") },
+			},
 			expected: map[string]any{"password": "[REDACTED]", "msg": "m"},
+		},
+		{
+			name: "WithGroup flows through the full handler chain",
+			input: struct {
+				cfg   logger.Config
+				logFn func(*slog.Logger)
+			}{
+				logger.Config{Redact: logger.RedactConfig{Redacted: []string{"password"}}},
+				func(s *slog.Logger) { s.WithGroup("req").Info("m", "password", "hunter2") },
+			},
+			expected: map[string]any{"msg": "m"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			tt.input.Writer = &buf
-			s := logger.New(tt.input).Slog()
+			tt.input.cfg.Writer = &buf
+			s := logger.New(tt.input.cfg).Slog()
 			if s == nil {
 				t.Fatal("Slog() returned nil")
 			}
-			s.Info("m", "password", "hunter2")
+			tt.input.logFn(s)
 			got := fields(t, &buf)
 			for k, v := range tt.expected {
 				if got[k] != v {

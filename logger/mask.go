@@ -19,7 +19,9 @@ func maskString(s string, m Mask) string {
 	}
 	r := []rune(s)
 	n := len(r)
-	if n <= first+last {
+	// Overflow-safe form of n <= first+last: huge bounds must mask fully,
+	// never wrap negative and slip past the guard.
+	if first >= n || last >= n-first {
 		return strings.Repeat(string(c), n)
 	}
 	var b strings.Builder
