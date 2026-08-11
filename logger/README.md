@@ -21,7 +21,7 @@ The `card_number` above shows first 6 and last 4 — which happens to be exactly
 - **One call to a working logger.** JSON output, your service's identity (`env`, `version`, `app`, `protocol`) on every line, level from config.
 - **Redaction that can't be forgotten.** Keys you name are replaced (`[REDACTED]` — or your own wording) or partially masked, wherever they appear: top level, nested, or inside a struct someone passed whole.
 - **Everything is still just slog.** No new logging API to learn — `Info`, `Warn`, `Error` with the same key-value args, plus `Debug` and `Panic`. Your existing slog knowledge, attrs, and tooling all still work.
-- **Nothing else.** Zero dependencies. The `go.mod` requires Go 1.21 and is otherwise empty — that's a feature, and it's permanent.
+- **Nothing else.** Zero dependencies. The `go.mod` requires Go 1.23.12 and is otherwise empty — that's a feature, and it's permanent.
 
 ## How it will look
 
@@ -30,8 +30,8 @@ log := logger.New(logger.Config{
     Env:      "production",
     Version:  "1.4.2",
     App:      "wipays",
-    Protocol: logger.ProtocolHTTP, // or grpc, graphql, cron, consumer — any string works
-    Level:    "info",
+    Protocol: logger.ProtocolHTTP,                    // typed constants; any Protocol("...") works
+    Level:    logger.ParseLevel(os.Getenv("LOG_LEVEL")), // or a slog.Level; zero value is Info
     Redact: logger.RedactConfig{
         Redacted: []string{"password", "authorization", "cvv"},
         Masked: map[string]logger.Mask{
@@ -40,14 +40,18 @@ log := logger.New(logger.Config{
     },
 })
 
-log.Info("payment created", "order_id", "ord_123", "card_number", pan)
+log.Info(ctx, "payment created", "order_id", "ord_123", "card_number", pan)
 ```
+
+Every log method takes a `context.Context` first — today it flows to the underlying handler; automatic enrichment from ctx (trace ids and friends) is planned, see the [roadmap](../ROADMAP.md).
 
 Already have a `*slog.Logger` you like? Keep it — add only the redaction layer:
 
 ```go
 log := slog.New(logger.Wrap(existingHandler, redactCfg))
 ```
+
+Runnable programs live in [`examples/`](examples/): [`payment`](examples/payment/main.go) shows PCI-style card masking on a whole struct, [`login`](examples/login/main.go) shows credentials caught in maps, `With`-bound args, and headers. `go run ./examples/payment` and read the output.
 
 ## The promises (as of v0.1.0)
 

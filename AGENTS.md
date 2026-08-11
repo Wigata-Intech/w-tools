@@ -10,7 +10,7 @@ Instructions for AI coding agents working in this repository. Human policy on AI
 
 1. **Zero third-party dependencies.** Never add a `require` to any `go.mod`. If a task seems to need one, stop and report why instead of adding it.
 2. **CGO-free.** Nothing that breaks `CGO_ENABLED=0` cross-compilation.
-3. **Go 1.21 API floor** in library code — each module's `go.mod` directive is the boundary; don't call stdlib APIs newer than it.
+3. **The module's `go.mod` directive is the API floor** — don't call stdlib APIs newer than it. Floors carry a patch version (e.g. `go 1.23.12`) so `govulncheck` analyzes against a patched stdlib; raising a floor is a maintainer decision.
 4. **Simplicity first.** Minimum code that solves the problem. No speculative abstraction, no single-implementation interfaces, no unrequested configurability.
 5. **Surgical changes.** Touch only what the task requires. Match existing style. Never reformat or "improve" adjacent code.
 6. **Never run git commands that mutate state** (add, commit, push, tag, rebase). Reading state (`git status`, `git diff`, `git log`) is fine. The human maintainer performs all version control.

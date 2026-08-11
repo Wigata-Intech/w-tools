@@ -22,6 +22,8 @@
 
 Nothing lives under `x/` yet. When it does, treat it as a sharp tool with no handle: an `x/` package is an experiment, not a promise — it can fail its experiment and be deleted outright, so never build anything load-bearing on one. Graduation to the root, under a new import path, is the only way an `x/` package earns stability.
 
+What's shipped and what's coming: [ROADMAP.md](ROADMAP.md), plus a `CHANGELOG.md` per module.
+
 ## Install
 
 Each package is its own module — pull only what you need:

@@ -1,5 +1,6 @@
 # golangci-lint v2 config (tool v2.x — config format version below is the schema, not the tool version).
 # Posture: everything on, then subtract with a written reason. An undocumented disable is a smell.
+# Validated against the logger implementation, 2026-08-11.
 version: "2"
 
 linters:
@@ -11,18 +12,35 @@ linters:
     - exhaustruct
     # Bans short identifiers; idiomatic Go uses them (i, b, tt).
     - varnamelen
-    # Whitespace/blank-line opinions that fight house formatting.
+    # Whitespace/blank-line opinions that fight house formatting. wsl was renamed wsl_v5 in golangci v2.12.
     - wsl
+    - wsl_v5
     - nlreturn
     # Line length — gofmt governs formatting here.
     - lll
-    # Arbitrary size caps; simplicity is enforced by human review, not thresholds.
+    # Arbitrary size/complexity thresholds; simplicity is enforced by human review, not numbers.
     - funlen
     - cyclop
     - gocognit
+    - maintidx
     # Magic-number detection would drown masking math and level constants in nolint noise.
     - mnd
     # Forces t.Parallel() on every test; our ordered table style makes this pure noise.
     - paralleltest
-    # Bans dynamic errors outright — too dogmatic even for a library. Revisit at v1.0.0.
-    - err113
+    # Bans the idiomatic `if err := f(); err != nil` inline form.
+    - noinlineerr
+    # Enforces camelCase json tags; log field names are snake_case by design (card_number).
+    - tagliatelle
+    # Wants every propagated error wrapped; a handler middleware forwards the inner handler's errors verbatim by slog contract.
+    - wrapcheck
+    # Deprecated since v2.12; its successor gomodguard_v2 stays enabled.
+    - gomodguard
+  settings:
+    exhaustive:
+      # Our reflect.Kind / slog.Kind switches handle the remainder in default.
+      default-signifies-exhaustive: true
+  exclusions:
+    rules:
+      # Table tests repeat literals ("hunter2", card numbers) on purpose.
+      - path: _test\.go$
+        linters: [goconst]

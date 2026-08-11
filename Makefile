@@ -4,7 +4,7 @@
 
 MODULES := logger
 
-.PHONY: check fmt vet lint build test vuln
+.PHONY: check fmt vet lint build test vuln cover
 
 check: fmt vet lint build test vuln
 	@echo "all checks passed"
@@ -22,7 +22,10 @@ build:
 	@for m in $(MODULES); do (cd $$m && GOWORK=off CGO_ENABLED=0 go build ./...) || exit 1; done
 
 test:
-	@for m in $(MODULES); do (cd $$m && go test -race ./...) || exit 1; done
+	@for m in $(MODULES); do (cd $$m && go test -race -cover $$(go list ./... | grep -v /examples/)) || exit 1; done
+
+cover:
+	@for m in $(MODULES); do (cd $$m && go test -race -coverprofile=coverage.out $$(go list ./... | grep -v /examples/) && go tool cover -func=coverage.out) || exit 1; done
 
 vuln:
 	@for m in $(MODULES); do (cd $$m && govulncheck ./...) || exit 1; done
