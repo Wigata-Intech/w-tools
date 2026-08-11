@@ -9,6 +9,7 @@
 - A server that's production-safe by default: every timeout on, graceful shutdown in one call
 - Route groups with shared prefixes and middleware over the stdlib `ServeMux` — every method routable, including RFC 10008 `QUERY`
 - JSON in and out: size-capped `Bind`, and errors as RFC 9457 `application/problem+json` by default
+- A standard middleware set: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction
 - Handlers stay plain `http.HandlerFunc` — nothing to learn, nothing to eject from
 - Zero dependencies, permanently
 
@@ -48,6 +49,20 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 
 Errors default to [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457): `{"type":"about:blank","title":"Bad Request","status":400,"detail":"..."}` — and services with their own error format swap it via `ErrorWriter`.
 
+Middleware wires in canonical order — outermost first, so the logger sees the real client IP, the IDs, and the panic-turned-500 with its latency:
+
+```go
+s.Use(
+    middleware.RealIP(middleware.RealIPConfig{TrustedProxies: proxies}),
+    middleware.RequestID(middleware.RequestIDConfig{}), // reuses inbound X-Request-ID, mints otherwise
+    middleware.Trace(),                                 // W3C traceparent in, ids in ctx — no OTel dependency
+    middleware.Logger(middleware.LoggerConfig{Log: log.Slog()}),
+    middleware.Recover(middleware.RecoverConfig{Log: log.Slog()}),
+)
+```
+
+Your own middleware plugs into the same slots — the chain type is the ecosystem's `func(http.Handler) http.Handler`, so anything written for that convention drops in unchanged.
+
 ## Why it matters
 
 Because there's no lock-in in either direction: anything written for `net/http` drops into httpx unchanged, and anything written for httpx runs under bare `net/http` — ejecting costs you a router file, not a rewrite. Because the defaults are the safe ones: the dangerous zero values (`no timeout`, unbounded bodies) are not expressible. And because it speaks current standards from day one — RFC 10008 `QUERY` routed, bound, and validated per the spec's server rules (a QUERY without a `Content-Type` is rejected, as the RFC requires); RFC 9457 for every error body.
@@ -65,4 +80,4 @@ As of today, v0 unreleased:
 - **Fail loud at boot, not silent in production.** Misregistration panics at startup exactly like `ServeMux`; nothing degrades silently.
 - **Zero dependencies.** The `go.mod` stays empty — that's a feature, and it's permanent.
 
-Coming next, in order: middleware (`RealIP`, `RequestID`, `Trace`, `Recover`, `Logger`, `CORS`, `RateLimit`), BFF HTML rendering, and an outbound client with tuned pooling and a circuit-breaker hook — the full plan is in [ROADMAP.md](../ROADMAP.md).
+Coming next, in order: the gate middleware (`CORS`, `RateLimit`), BFF HTML rendering, and an outbound client with tuned pooling and a circuit-breaker hook — the full plan is in [ROADMAP.md](../ROADMAP.md).

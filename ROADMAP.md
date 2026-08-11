@@ -8,10 +8,11 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 
 | Status | Item |
 | ------ | ---- |
-| 🚧 | Server with production timeouts + graceful shutdown; route groups over `ServeMux`; every method incl. RFC 10008 `QUERY` |
-| 🚧 | JSON respond/bind with RFC 9457 `application/problem+json` errors, swappable via `ErrorWriter` |
+| ✅ | Server with production timeouts + graceful shutdown; route groups over `ServeMux`; every method incl. RFC 10008 `QUERY` — merged via #5 |
+| ✅ | JSON respond/bind with RFC 9457 `application/problem+json` errors, swappable via `ErrorWriter` — merged via #5 |
 | 🚧 | `ErrorMap` — register domain-error → `Problem` mappings once at startup; handlers respond with one line |
-| 🚧 | Middleware: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` (buffer-pooled, opt-in body capture), `CORS`, `RateLimit` (pluggable `Limiter`) |
+| ✅ | Middleware: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` (buffer-pooled, opt-in body capture) — fuzzers on the two wire-input parsers |
+| 🚧 | Gate middleware: `CORS`, `RateLimit` (pluggable `Limiter`) |
 | 🚧 | BFF rendering: structural `Renderer` interface — templ native, `html/template` adapter |
 | 🚧 | Outbound client: tuned pooling, mandatory timeout, circuit-breaker hook, traceparent propagation |
 | 🚧 | `x/circuitbreaker`: three-state breaker implementing the client's `Breaker` hook — experimental |
@@ -31,12 +32,13 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 | ✅ | Internal benchmarks — no-rules path measured at parity with raw slog, zero allocations |
 | ✅ | Fuzzing: mask invariants and full-pipeline redaction, 10M+ executions clean |
 | 🚧 | First production adoption in a Wigata InTech service — gates `v1.0.0` |
+| 🚧 | Automatic enrichment from `ctx` — request id, trace id, real IP on every line, configurable (the sibling-dependency law means logger takes extractor funcs, never middleware's ctx keys) |
 | 💡 | Comparative benchmarks vs zap, zerolog, logrus — README material, after the API freezes |
-| 💡 | Automatic enrichment from `ctx` — trace id and friends, key naming to be decided |
+| 💡 | Async/buffered slog handler — take log emission off the request path in one place instead of per-middleware goroutines |
 | 💡 | Call-site / stack trace support (`AddSource`, stack attr on `Error`/`Panic`) — shaped by real WiPays usage |
 
 ## Future packages
 
 | Status | Item |
 | ------ | ---- |
-| 💡 | Config helpers, `x/sshx` — each starts with its own RFC or design doc |
+| 💡 | Config helpers, `x/sshx`, `x/workerpool` (reusable bounded-worker primitive) — each starts with its own RFC or design doc |
