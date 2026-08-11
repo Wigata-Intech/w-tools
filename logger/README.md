@@ -2,7 +2,7 @@
 
 > Set it up once, and sensitive data stops appearing in your logs. That's the whole pitch.
 
-**Status: 🚧 pre-release.** The design is settled, the code is landing. Until the `logger/v0.1.0` tag exists, anything here may still shift.
+**Status: v0, released.** Production-track at Wigata InTech. Semver v0 applies: the API can still move between minor versions until `v1.0.0`, which lands only after surviving production use.
 
 ## The problem this solves
 
@@ -23,7 +23,7 @@ The `card_number` above shows first 6 and last 4 — which happens to be exactly
 - **Everything is still just slog.** No new logging API to learn — `Info`, `Warn`, `Error` with the same key-value args, plus `Debug` and `Panic`. Your existing slog knowledge, attrs, and tooling all still work.
 - **Nothing else.** Zero dependencies. The `go.mod` requires Go 1.23.12 and is otherwise empty — that's a feature, and it's permanent.
 
-## How it will look
+## How it looks
 
 ```go
 log := logger.New(logger.Config{

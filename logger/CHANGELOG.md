@@ -4,6 +4,8 @@ All notable changes to `logger`. Format follows [Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-11
+
 ### Added
 
 - Initial implementation: `log/slog` wrapper with JSON-first output, service base fields (`env`, `version`, `app`, `protocol`), and levels `Debug`/`Info`/`Warn`/`Error`/`Panic` (rendered `PANIC`; logs before panicking)
