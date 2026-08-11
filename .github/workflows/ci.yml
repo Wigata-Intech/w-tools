@@ -52,3 +52,24 @@ jobs:
 
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  examples:
+    name: examples (workspace)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false # no go.sum: the workspace supplies every module locally
+
+      - name: vet and build against workspace HEAD
+        working-directory: httpx/examples
+        run: go vet ./... && go build ./...
+
+      - name: run the redaction proof
+        working-directory: httpx/examples
+        run: |
+          out=$(go run ./redaction)
+          echo "$out" | grep -q '\[REDACTED\]'

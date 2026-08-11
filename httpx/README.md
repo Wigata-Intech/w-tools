@@ -10,6 +10,7 @@
 - Route groups with shared prefixes and middleware over the stdlib `ServeMux` — every method routable, including RFC 10008 `QUERY`
 - JSON in and out: size-capped `Bind`, and errors as RFC 9457 `application/problem+json` by default
 - A standard middleware set: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction — plus the gates: `CORS` and `RateLimit` (pluggable `Limiter`)
+- BFF-ready HTML rendering (`Renderer` — templ satisfies it natively, `html/template` via the built-in adapter) and `ErrorMap` for one-line domain-error responses
 - Handlers stay plain `http.HandlerFunc` — nothing to learn, nothing to eject from
 - Zero dependencies, permanently
 
@@ -80,4 +81,14 @@ As of today, v0 unreleased:
 - **Fail loud at boot, not silent in production.** Misregistration panics at startup exactly like `ServeMux`; nothing degrades silently.
 - **Zero dependencies.** The `go.mod` stays empty — that's a feature, and it's permanent.
 
-Coming next, in order: BFF HTML rendering, `ErrorMap`, and an outbound client with tuned pooling and a circuit-breaker hook — the full plan is in [ROADMAP.md](../ROADMAP.md).
+Runnable programs live in [`examples/`](examples/): a REST service with `ErrorMap` and QUERY search, a BFF page, and the [redaction proof](examples/redaction/main.go) — the Logger middleware feeding a captured request body through [w-tools/logger](../logger/)'s rules, password `[REDACTED]` in the access line with nobody writing a careful log call. The examples run from a clone of the repo — the committed `go.work` resolves the sibling modules locally.
+
+templ users need no adapter at all — a generated component *is* a `Renderer`:
+
+```go
+_ = httpx.Render(w, r, http.StatusOK, pages.Dashboard(user)) // templ.Component satisfies Renderer structurally
+```
+
+(No templ program ships in `examples/` — it would put a third-party dependency in the repo, and rule one is zero of those.)
+
+Coming next: an outbound client with tuned pooling and a circuit-breaker hook — the full plan is in [ROADMAP.md](../ROADMAP.md).

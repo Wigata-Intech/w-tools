@@ -4,9 +4,9 @@
 
 MODULES := httpx logger
 
-.PHONY: check fmt vet lint build test vuln cover bench fuzz
+.PHONY: check fmt vet lint build test examples vuln cover bench fuzz
 
-check: fmt vet lint build test vuln
+check: fmt vet lint build test examples vuln
 	@echo "all checks passed"
 
 fmt:
@@ -26,6 +26,10 @@ test:
 
 cover:
 	@for m in $(MODULES); do (cd $$m && go test -race -coverprofile=coverage.out $$(go list ./... | grep -v /examples/) && go tool cover -func=coverage.out) || exit 1; done
+
+# Not in MODULES: the examples module needs the workspace (it imports siblings).
+examples:
+	@(cd httpx/examples && go vet ./... && go build ./... && out=$$(go run ./redaction) && echo "$$out" | grep -q '\[REDACTED\]') && echo "examples ok"
 
 vuln:
 	@for m in $(MODULES); do (cd $$m && govulncheck ./...) || exit 1; done

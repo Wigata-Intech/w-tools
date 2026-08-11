@@ -6,10 +6,16 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Zero runtime deps by policy, so this stays quiet — it exists to watch the Go directive
-  # and to scream if a dependency ever sneaks into a go.mod.
+  # Zero third-party deps by policy, so the gomod entries stay quiet — they exist
+  # to scream if a dependency ever sneaks into a go.mod. One entry per module;
+  # examples is the likeliest sneak-in point (the one module allowed to require siblings).
   - package-ecosystem: "gomod"
     directory: "/httpx"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "gomod"
+    directory: "/httpx/examples"
     schedule:
       interval: "weekly"
 
