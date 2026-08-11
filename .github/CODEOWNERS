@@ -1,0 +1,3 @@
+# Every path requires maintainer review — enforced by the main branch ruleset's
+# "Require review from Code Owners" rule.
+* @mrdhira
