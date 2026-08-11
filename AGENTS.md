@@ -4,7 +4,7 @@ Instructions for AI coding agents working in this repository. Human policy on AI
 
 ## What this repo is
 
-`w-tools` — Wigata InTech's open-source Go monorepo. Multi-module: each package has its own `go.mod` and is tagged independently, format `<module>/vX.Y.Z` (no tags exist yet; the first will be `logger/v0.1.0`). Stable packages live at the root; experimental ones under `x/`. The committed `go.work` wires local development.
+`w-tools` — Wigata InTech's open-source Go monorepo. Multi-module: each package has its own `go.mod` and is tagged independently, format `<module>/vX.Y.Z` (e.g. `logger/v0.1.0`, the first release). Stable packages live at the root; experimental ones under `x/`. The committed `go.work` wires local development.
 
 ## Hard rules
 
@@ -14,7 +14,7 @@ Instructions for AI coding agents working in this repository. Human policy on AI
 4. **Simplicity first.** Minimum code that solves the problem. No speculative abstraction, no single-implementation interfaces, no unrequested configurability.
 5. **Surgical changes.** Touch only what the task requires. Match existing style. Never reformat or "improve" adjacent code.
 6. **Never run git commands that mutate state** (add, commit, push, tag, rebase). Reading state (`git status`, `git diff`, `git log`) is fine. The human maintainer performs all version control.
-7. **Every exported identifier gets a godoc comment** starting with its name. Package docs live in `doc.go`. Public APIs get runnable `Example` functions. Deprecations use `// Deprecated: ...`.
+7. **Every exported identifier gets a godoc comment** starting with its name. Package docs live in `doc.go`. Runnable demonstrations live in a package's `examples/` module; in-code `Example` functions are added only when their output is assertable (the `testableexamples` linter rejects output-less ones). Deprecations use `// Deprecated: ...`.
 
 ## Test standards (enforced in review)
 
@@ -50,5 +50,6 @@ w-tools/
 ├── go.work          # committed on purpose — do not gitignore it
 ├── logger/          # slog wrapper with key-based redaction (see logger/README.md)
 ├── httpx/           # net/http wrapper: server, groups, JSON + RFC 9457 (see httpx/README.md)
+│   └── middleware/  # RealIP, RequestID, Trace, Recover, Logger — same module
 └── x/               # experimental packages (none yet)
 ```

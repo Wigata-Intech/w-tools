@@ -108,4 +108,4 @@ Everyone interacting here is covered by the [Code of Conduct](CODE_OF_CONDUCT.md
 
 ## Releases
 
-Maintainers tag releases (`logger/v0.3.0` — per-module tags). Contributors never need to touch versioning.
+Maintainers tag releases (`logger/v0.1.0` — per-module tags). Contributors never need to touch versioning.
