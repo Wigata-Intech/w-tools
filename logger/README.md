@@ -71,6 +71,8 @@ Measured with `make bench` (Apple Silicon, 6-attr record, output discarded). Rea
 
 The practical takeaway from the last two rows: on your hottest code paths, pass sensitive values as top-level keys (`"card_number", pan`) rather than logging whole structs — identical protection, a third of the cost. Struct logging is fine everywhere else.
 
+Under concurrency it scales rather than queues: eight goroutines sharing one logger push per-line cost *down* (pass-through ~276 ns/op at `-cpu 8`, still zero allocations; the struct path ~1.0µs) — the handler and the reflection plan cache are read-shared, so more cores mean more throughput, not a lock convoy.
+
 ## The promises
 
 As of `v0.1.0`:

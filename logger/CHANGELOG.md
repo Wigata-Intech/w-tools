@@ -4,6 +4,19 @@ All notable changes to `logger`. Format follows [Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-12
+
+### Added
+
+- Parallel benchmark variants (`BenchmarkPassThroughParallel`, `BenchmarkRedactStructParallel`) — concurrent-logger scaling published in the README
+
+### Changed
+
+- README restructured to the house 5W+1H template (TL;DR → problem → how → why → cost → promises); per-package license section dropped — the repository LICENSE covers every module
+- Test tables drop the `mockFunc` field where no case used it, per the sharpened house standard
+
+No functional change; no API change.
+
 ## [0.1.0] - 2026-08-11
 
 ### Added

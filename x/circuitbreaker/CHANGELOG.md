@@ -4,6 +4,10 @@ All notable changes to `x/circuitbreaker` are documented here. Format follows [K
 
 ## [Unreleased]
 
+
+
+## [0.1.0] - 2026-08-12
+
 ### Added
 
 - Three-state breaker (`Closed`/`Open`/`HalfOpen`) tripping on failure ratio over a bucketed sliding window with a minimum sample size; recovery through capped half-open probes, full success closing with a fresh window

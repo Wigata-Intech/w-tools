@@ -80,3 +80,30 @@ func BenchmarkRedactStruct(b *testing.B) {
 		log.Info(ctx, "payment created", "order_id", "ord_123", "user", user)
 	}
 }
+
+// BenchmarkPassThroughParallel is the pass-through path under concurrent
+// loggers sharing one handler — run with -cpu 1,4,8 for the curve.
+func BenchmarkPassThroughParallel(b *testing.B) {
+	ctx := context.Background()
+	log := logger.New(logger.Config{Writer: io.Discard})
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			log.Info(ctx, "payment created", "order_id", "ord_123", "amount_jpy", 4980, "region", "ap-northeast-1", "attempt", 1, "ok", true)
+		}
+	})
+}
+
+// BenchmarkRedactStructParallel is the reflection-heavy path under
+// concurrent loggers — the plan cache and handler shared across all.
+func BenchmarkRedactStructParallel(b *testing.B) {
+	ctx := context.Background()
+	log := logger.New(logger.Config{Writer: io.Discard, Redact: benchRedact()})
+	user := benchUser{Name: "d", Password: "hunter2", Card: benchCard{Number: "4111111111111111", CVV: "123", Holder: "D W"}}
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			log.Info(ctx, "payment created", "order_id", "ord_123", "user", user)
+		}
+	})
+}

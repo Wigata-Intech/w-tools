@@ -4,6 +4,10 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+
+
+## [0.1.0] - 2026-08-12
+
 ### Added
 
 - `middleware` package: `RealIP` (CIDR-trusted proxy resolution, spoof-safe by default, `PrivateNetworks()` convenience set), `RequestID` (reuse-or-mint, customizable header), `Trace` (W3C traceparent wire format, no OTel dependency, flags preserved via `TraceFlagsFrom`), `Recover` (panic → logged 500, `http.ErrAbortHandler` honored), `Logger` (one access line per request; buffer-pooled, opt-in JSON body capture as structured attrs — non-JSON bodies never log raw). Canonical order documented: `RealIP → RequestID → Trace → Logger → Recover`

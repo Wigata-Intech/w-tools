@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ["*/v*.*.*"] # per-module tags: logger/v0.1.0
+    tags: ["**/v*.*.*"] # per-module tags: logger/v0.1.0, x/circuitbreaker/v0.1.0 — ** crosses the slash in nested module paths
 
 permissions:
   contents: write

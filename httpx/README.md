@@ -2,7 +2,7 @@
 
 > Everything `net/http` makes you wire by hand — timeouts, groups, middleware, JSON errors — without ever hiding `net/http` from you.
 
-**Status: v0, in development.** The API below is real and tested, but unreleased and still allowed to move. First tag lands when the middleware set is in.
+**Status: v0, released.** Production-track at Wigata InTech. Semver v0 applies: the API can still move between minor versions until `v1.0.0`, which lands only after surviving production use.
 
 ## TL;DR
 
@@ -71,7 +71,20 @@ Because there's no lock-in in either direction: anything written for `net/http` 
 
 ## What it costs
 
-Not measured yet — the benchmark suite lands with the middleware phase, and numbers get published here the same way logger's were. What's true by construction today: groups are registration-time sugar, so at request time there is only the one `ServeMux` — grouping adds **zero** per-request routing cost over the stdlib.
+Measured with `go test -bench=. -benchmem` (Apple Silicon, output discarded). Read it as a price list:
+
+| Situation | ns/op | allocs/op | Meaning for you |
+| --------- | ----- | --------- | --------------- |
+| Raw `ServeMux` routing | ~109 | 2 | The stdlib baseline |
+| The same route through nested groups | ~114 | 2 | **Grouping is free** — parity within noise, identical allocations, because groups are registration-time sugar |
+| Request floor (build + bare handler) | ~139 | 3 | What the middleware numbers subtract |
+| `Logger` middleware, capture off | ~1,112 | 8 | ~1µs per request — almost all of it the JSON access line itself |
+| `Logger` with request-body capture | ~2,545 | 40 | The opt-in costs ~1.4µs more: capture, parse, structured attr |
+| Full canonical chain (RealIP → RequestID → Trace → Logger → Recover) | ~2,567 | 32 | Your whole production identity stack: under 2.5µs of overhead per request |
+
+The practical takeaway: the expensive thing in the stack is writing a log line, not the middleware machinery around it — and even the everything-on chain costs less than 0.3% of a 1ms handler.
+
+Under concurrency the chain holds flat (~2.6–3.0µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~364 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
 
 ## The promises
 
