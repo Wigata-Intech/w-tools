@@ -19,4 +19,7 @@ const (
 	DefaultShutdownGrace     = 15 * time.Second
 	DefaultMaxHeaderBytes    = 1 << 20        // 1 MiB
 	DefaultMaxBind           = int64(1) << 20 // 1 MiB
+
+	// DefaultMaxBody caps body capture.
+	DefaultMaxBody = 64 << 10 // 64 KiB
 )

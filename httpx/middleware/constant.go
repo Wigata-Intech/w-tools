@@ -11,9 +11,6 @@ import (
 // RequestIDConfig.Header is empty.
 const DefaultRequestIDHeader = "X-Request-ID"
 
-// DefaultMaxBody caps middleware body capture (used by the Logger middleware).
-const DefaultMaxBody = 64 << 10 // 64 KiB
-
 // DefaultMaxKeys caps live buckets in RateLimit's in-package limiter.
 const DefaultMaxKeys = 65536
 

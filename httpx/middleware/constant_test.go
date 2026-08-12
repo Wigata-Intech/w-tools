@@ -13,7 +13,6 @@ func TestConstants(t *testing.T) {
 		expected any
 	}{
 		{name: "DefaultRequestIDHeader is the conventional name", input: middleware.DefaultRequestIDHeader, expected: "X-Request-ID"},
-		{name: "DefaultMaxBody is 64 KiB", input: middleware.DefaultMaxBody, expected: 65536},
 	}
 
 	for _, tt := range tests {

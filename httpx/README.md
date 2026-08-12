@@ -11,6 +11,7 @@
 - JSON in and out: size-capped `Bind`, and errors as RFC 9457 `application/problem+json` by default
 - A standard middleware set: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction — plus the gates: `CORS` and `RateLimit` (pluggable `Limiter`)
 - BFF-ready HTML rendering (`Renderer` — templ satisfies it natively, `html/template` via the built-in adapter) and `ErrorMap` for one-line domain-error responses
+- An outbound `client`: pooling tuned for services (not the stdlib's 2 idle conns/host), a timeout you can't turn off, a circuit-breaker hook, trace propagation, and opt-in logging where redaction follows your logger
 - Handlers stay plain `http.HandlerFunc` — nothing to learn, nothing to eject from
 - Zero dependencies, permanently
 
@@ -91,4 +92,4 @@ _ = httpx.Render(w, r, http.StatusOK, pages.Dashboard(user)) // templ.Component 
 
 (No templ program ships in `examples/` — it would put a third-party dependency in the repo, and rule one is zero of those.)
 
-Coming next: an outbound client with tuned pooling and a circuit-breaker hook — the full plan is in [ROADMAP.md](../ROADMAP.md).
+Coming next: `x/circuitbreaker`, the experimental breaker that plugs into the client's `Breaker` hook — the full plan is in [ROADMAP.md](../ROADMAP.md).

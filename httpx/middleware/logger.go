@@ -27,7 +27,7 @@ type LoggerConfig struct {
 	LogRequestBody  bool
 	LogResponseBody bool
 
-	// MaxBody caps each captured body. Default DefaultMaxBody.
+	// MaxBody caps each captured body. Default httpx.DefaultMaxBody.
 	MaxBody int
 }
 
@@ -42,7 +42,7 @@ func Logger(cfg LoggerConfig) httpx.Middleware {
 
 	maxBody := cfg.MaxBody
 	if maxBody <= 0 {
-		maxBody = DefaultMaxBody
+		maxBody = httpx.DefaultMaxBody
 	}
 
 	pool := &sync.Pool{New: func() any { return new(bytes.Buffer) }}

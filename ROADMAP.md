@@ -14,7 +14,7 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 | ✅ | Middleware: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` (buffer-pooled, opt-in body capture) — fuzzers on the two wire-input parsers |
 | ✅ | Gate middleware: `CORS` (Fetch-spec preflights, boot-time misconfig panic) and `RateLimit` (bounded-memory token bucket, pluggable `Limiter`) |
 | ✅ | BFF rendering: structural `Renderer` interface — templ native, `html/template` adapter — plus the examples module (REST, BFF, and the CI-asserted redaction proof). **On probation**: templ ships its own `templ.Handler`, so `Render`/`Renderer` must earn their keep in the first real WiPays BFF page or be deleted before `v1.0.0` — v0 semantics make removal cheap now, impossible later |
-| 🚧 | Outbound client: tuned pooling, mandatory timeout, circuit-breaker hook, traceparent propagation |
+| ✅ | Outbound client: tuned pooling, mandatory timeout, circuit-breaker hook, traceparent propagation, and opt-in redaction-inheriting request/response logging |
 | 🚧 | `x/circuitbreaker`: three-state breaker implementing the client's `Breaker` hook — experimental |
 | 💡 | Idempotency-Key middleware (server) and idempotency-aware client retries — bring-your-own store |
 | 💡 | Distributed rate limiting: a store-backed `Limiter` (Redis), likely under `x/` |

@@ -21,6 +21,7 @@ func TestConstants(t *testing.T) {
 		{name: "DefaultShutdownGrace", input: httpx.DefaultShutdownGrace, expected: 15 * time.Second},
 		{name: "DefaultMaxHeaderBytes is 1 MiB", input: httpx.DefaultMaxHeaderBytes, expected: 1 << 20},
 		{name: "DefaultMaxBind is 1 MiB", input: httpx.DefaultMaxBind, expected: int64(1) << 20},
+		{name: "DefaultMaxBody is 64 KiB", input: httpx.DefaultMaxBody, expected: 64 << 10},
 	}
 
 	for _, tt := range tests {
