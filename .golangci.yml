@@ -1,6 +1,5 @@
 # golangci-lint v2 config (tool v2.x — config format version below is the schema, not the tool version).
 # Posture: everything on, then subtract with a written reason. An undocumented disable is a smell.
-# Validated against the logger implementation, 2026-08-11.
 version: "2"
 
 linters:

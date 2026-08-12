@@ -15,9 +15,10 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 | ✅ | Gate middleware: `CORS` (Fetch-spec preflights, boot-time misconfig panic) and `RateLimit` (bounded-memory token bucket, pluggable `Limiter`) |
 | ✅ | BFF rendering: structural `Renderer` interface — templ native, `html/template` adapter — plus the examples module (REST, BFF, and the CI-asserted redaction proof). **On probation**: templ ships its own `templ.Handler`, so `Render`/`Renderer` must earn their keep in the first real WiPays BFF page or be deleted before `v1.0.0` — v0 semantics make removal cheap now, impossible later |
 | ✅ | Outbound client: tuned pooling, mandatory timeout, circuit-breaker hook, traceparent propagation, and opt-in redaction-inheriting request/response logging |
-| 🚧 | `x/circuitbreaker`: three-state breaker implementing the client's `Breaker` hook — experimental |
+| ✅ | `x/circuitbreaker`: three-state breaker implementing the client's `Breaker` hook — experimental, own module, CI-proven fail-fast via the examples' breaker demo |
 | 💡 | Idempotency-Key middleware (server) and idempotency-aware client retries — bring-your-own store |
 | 💡 | Distributed rate limiting: a store-backed `Limiter` (Redis), likely under `x/` |
+| 💡 | Distributed circuit breaking — *uncertain on purpose*: the seam already exists (any Redis-backed implementation of `client.Breaker` plugs in today), and per-instance breaking is usually the correct semantic; if cluster coordination is ever proven necessary, the shape is local breakers sharing observations asynchronously and deciding locally — never a network hop inside `Allow` |
 | 💡 | `x/websocket` — RFC 6455 implementation, its own design when its turn comes |
 
 ## logger
@@ -39,6 +40,13 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 
 ## Future packages
 
+Each starts with its own RFC or design doc; 💡 means candidate, not commitment.
+
 | Status | Item |
 | ------ | ---- |
-| 💡 | Config helpers, `x/sshx`, `x/workerpool` (reusable bounded-worker primitive) — each starts with its own RFC or design doc |
+| 💡 | `cli` — stdlib-only command/flag/env framework for service entrypoints |
+| 💡 | `cli/migrationx` — goose-style SQL migrations on `database/sql` + `embed`; drivers stay consumer-side |
+| 💡 | `dbx` — `database/sql` ergonomics (tx helpers, timeouts, scanning); never imports a driver, tested against sqlite/mysql via the examples module |
+| 💡 | `x/token` — JWT on stdlib crypto only; security-sensitive, so `x/` and heavy hardening if attempted |
+| 💡 | `hasher` (argon2) — **blocked on policy**: argon2 needs `golang.org/x/crypto`, which the zero-dependency law forbids; either stays in project repos or w-tools RFCs a curated `golang.org/x`-only exception |
+| 💡 | Config helpers, `x/sshx`, `x/workerpool` (reusable bounded-worker primitive) |

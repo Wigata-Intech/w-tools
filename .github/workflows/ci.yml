@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: [httpx, logger]
+        module: [httpx, logger, x/circuitbreaker]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -73,3 +73,9 @@ jobs:
         run: |
           out=$(go run ./redaction)
           echo "$out" | grep -q '\[REDACTED\]'
+
+      - name: run the breaker proof
+        working-directory: httpx/examples
+        run: |
+          out=$(go run ./breaker)
+          echo "$out" | grep -q 'CIRCUIT OPEN'

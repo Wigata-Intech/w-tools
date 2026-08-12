@@ -9,6 +9,7 @@ body:
       options:
         - httpx
         - logger
+        - x/circuitbreaker
     validations:
       required: true
   - type: input

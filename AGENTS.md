@@ -51,6 +51,9 @@ w-tools/
 ├── go.work          # committed on purpose — do not gitignore it
 ├── logger/          # slog wrapper with key-based redaction (see logger/README.md)
 ├── httpx/           # net/http wrapper: server, groups, JSON + RFC 9457 (see httpx/README.md)
-│   └── middleware/  # RealIP, RequestID, Trace, Recover, Logger — same module
-└── x/               # experimental packages (none yet)
+│   ├── middleware/  # RealIP, RequestID, Trace, Recover, Logger, CORS, RateLimit — same module
+│   ├── client/      # outbound: pooled, timed, breaker hook, traced, logged — same module
+│   └── examples/    # own module, workspace-only — the one place siblings assemble
+└── x/
+    └── circuitbreaker/  # experimental: three-state breaker (own module, deletable)
 ```

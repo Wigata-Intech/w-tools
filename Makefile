@@ -2,7 +2,7 @@
 # `make check` is the whole gate; CI runs the same targets, in the same order.
 # Order: cheap static checks -> compile -> dynamic -> network. Fail fast, fail cheap.
 
-MODULES := httpx logger
+MODULES := httpx logger x/circuitbreaker
 
 .PHONY: check fmt vet lint build test examples vuln cover bench fuzz
 
@@ -29,7 +29,9 @@ cover:
 
 # Not in MODULES: the examples module needs the workspace (it imports siblings).
 examples:
-	@(cd httpx/examples && go vet ./... && go build ./... && out=$$(go run ./redaction) && echo "$$out" | grep -q '\[REDACTED\]') && echo "examples ok"
+	@(cd httpx/examples && go vet ./... && go build ./... \
+		&& out=$$(go run ./redaction) && echo "$$out" | grep -q '\[REDACTED\]' \
+		&& out=$$(go run ./breaker) && echo "$$out" | grep -q 'CIRCUIT OPEN') && echo "examples ok"
 
 vuln:
 	@for m in $(MODULES); do (cd $$m && govulncheck ./...) || exit 1; done

@@ -9,6 +9,7 @@ body:
       options:
         - httpx
         - logger
+        - x/circuitbreaker
         - new package proposal
     validations:
       required: true
