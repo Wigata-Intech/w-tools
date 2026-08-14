@@ -140,7 +140,11 @@ func (mysqlDialect) createTable(ctx context.Context, conn *sql.Conn, table strin
 // same MySQL server using the same table name must not collide. The
 // dialect already assumes one implicit default database per connection
 // (table names are never schema-qualified elsewhere), so reusing that
-// same assumption here needs no new Config field.
+// same assumption here needs no new Config field. MySQL caps user-level
+// lock names at 64 characters (errors above that on >=5.7.5), and
+// DATABASE() plus ':migrationx:' plus the table name can exceed it in
+// the worst case — a documented limit, not a regression, and the
+// failure is a loud error rather than a silent wrong lock.
 const lockName = "CONCAT(DATABASE(), ':migrationx:', ?)"
 
 func (mysqlDialect) lock(ctx context.Context, conn *sql.Conn, table string, timeout time.Duration) error {

@@ -334,6 +334,7 @@ func TestUp(t *testing.T) {
 				applied: []int64{100, 200},
 				counts: map[string]int{
 					"GET_LOCK":                        1,
+					"CONCAT(DATABASE(),":              2,
 					"RELEASE_LOCK":                    1,
 					"INSERT INTO migration_histories": 2,
 				},
