@@ -136,9 +136,16 @@ func (mysqlDialect) createTable(ctx context.Context, conn *sql.Conn, table strin
 	return err
 }
 
+// lockName scopes the advisory lock to DATABASE(): two databases on the
+// same MySQL server using the same table name must not collide. The
+// dialect already assumes one implicit default database per connection
+// (table names are never schema-qualified elsewhere), so reusing that
+// same assumption here needs no new Config field.
+const lockName = "CONCAT(DATABASE(), ':migrationx:', ?)"
+
 func (mysqlDialect) lock(ctx context.Context, conn *sql.Conn, table string, timeout time.Duration) error {
 	var got sql.NullInt64
-	row := conn.QueryRowContext(ctx, "SELECT GET_LOCK(?, ?)", "migrationx:"+table, int64(timeout.Seconds()))
+	row := conn.QueryRowContext(ctx, "SELECT GET_LOCK("+lockName+", ?)", table, int64(timeout.Seconds()))
 	if err := row.Scan(&got); err != nil {
 		return fmt.Errorf("migrationx: acquiring lock: %w", err)
 	}
@@ -149,7 +156,7 @@ func (mysqlDialect) lock(ctx context.Context, conn *sql.Conn, table string, time
 }
 
 func (mysqlDialect) unlock(ctx context.Context, conn *sql.Conn, table string) error {
-	_, err := conn.ExecContext(ctx, "SELECT RELEASE_LOCK(?)", "migrationx:"+table)
+	_, err := conn.ExecContext(ctx, "SELECT RELEASE_LOCK("+lockName+")", table)
 	return err
 }
 
