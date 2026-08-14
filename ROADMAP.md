@@ -1,6 +1,16 @@
 # Roadmap
 
-Where each package is and where it's going. ✅ delivered · 🚧 agreed and in progress · 💡 candidate, not committed. History of what actually shipped lives in each module's `CHANGELOG.md`.
+Where each package is and where it's going. ✅ delivered · 🚧 agreed and in progress · 💡 candidate, not committed. History of what actually shipped lives in each module's `CHANGELOG.md`. Module sections are alphabetical; Future packages always sits last.
+
+## cli
+
+Shipped as `cli/v0.1.0`, 2026-08-14, `migrationx` included.
+
+| Status | Item |
+| ------ | ---- |
+| ✅ | Stdlib-only command/flag/env framework for service entrypoints: command tree, precedence chain, struct binding, generated help — shipped as `cli/v0.1.0` |
+| ✅ | `cli/migrationx` — SQL migrations on `database/sql` + `embed`: timestamp-versioned files with checksums and a migration lock; drivers stay consumer-side; shipped in `cli/v0.1.0` — engine, scanner, locks, migrate command |
+| 💡 | Live config reload — *proposed, not approved*: would supersede the design's deliberate omissions; shape if accepted is SIGHUP-triggered re-resolution with an `OnReload` callback, never file watching |
 
 ## httpx
 
@@ -39,18 +49,29 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 | 💡 | Async/buffered slog handler — take log emission off the request path in one place instead of per-middleware goroutines |
 | 💡 | Call-site / stack trace support (`AddSource`, stack attr on `Error`/`Panic`) — shaped by real WiPays usage |
 
-## Future packages
+## x/sshx
 
-Each starts with its own RFC or design doc; 💡 means candidate, not commitment.
+Design approved 2026-08-14 (persistent SSH connection management; first consumer is `kay`). Carries the repo's one dependency exception: `golang.org/x/crypto`, allowlisted for `x/` modules by maintainer decision.
 
 | Status | Item |
 | ------ | ---- |
-| ✅ | `cli` — stdlib-only command/flag/env framework for service entrypoints; shipped as `cli/v0.1.0` with `migrationx` included |
-| 💡 | `cli` live config reload — *proposed, not approved*: would supersede the design's deliberate omissions; shape if accepted is SIGHUP-triggered re-resolution with an `OnReload` callback, never file watching |
-| 💡 | Go 1.27 compatibility pass — verify the gate under 1.27 (json/v2 becomes `encoding/json`'s engine); floor bumps stay demand-driven, since a floor excludes every consumer below it |
-| ✅ | `cli/migrationx` — SQL migrations on `database/sql` + `embed`: timestamp-versioned files with checksums and a migration lock; drivers stay consumer-side; shipped in `cli/v0.1.0` — engine, scanner, locks, migrate command |
+| 🚧 | Core client: ctx-first `Dial` with staged typed errors, `Output`/`CombinedOutput` (output survives failure), deadline-guarded `Ping`, keepalive |
+| 🚧 | Fail-closed host-key policies: strict `KnownHosts`, `TOFU` with caller confirmation (single prompt under concurrent first contact), explicit `InsecureAcceptAny` |
+| 🚧 | `Pool`/`Managed`: self-healing per-host connections, jittered exponential backoff, pool-wide dial cap, non-blocking `ErrNotReady`, `OnStateChange` |
+| 🚧 | Stream-based sessions: `Shell` with optional PTY and live `Resize` — the library never touches the local terminal |
+| 🚧 | `keys` subpackage: parse / load with passphrase callback / generate (Ed25519 default, RSA ≥ 2048); fuzzers on the parse and comment round-trip invariants |
+| 💡 | ssh-agent auth (`SSH_AUTH_SOCK`) — additive once a real consumer asks |
+| 💡 | Jump/bastion hosts — needs its own design pass |
+
+## Future packages
+
+Each starts with its own RFC or design doc; 💡 means candidate, not commitment. Rows alphabetical.
+
+| Status | Item |
+| ------ | ---- |
 | 💡 | `dbx` — `database/sql` ergonomics (tx helpers, timeouts, scanning); never imports a driver, tested against sqlite/mysql via the examples module |
-| 💡 | `x/token` — JWT on stdlib crypto only; security-sensitive, so `x/` and heavy hardening if attempted |
-| 💡 | `hasher` (argon2) — **blocked on policy**: argon2 needs `golang.org/x/crypto`, which the zero-dependency law forbids; either stays in project repos or w-tools RFCs a curated `golang.org/x`-only exception |
+| 💡 | Go 1.27 compatibility pass — verify the gate under 1.27 (json/v2 becomes `encoding/json`'s engine); floor bumps stay demand-driven, since a floor excludes every consumer below it |
+| 💡 | `hasher` (argon2) — the curated `golang.org/x` allowlist for `x/` modules now exists (maintainer-approved per pair; `x/sshx` → `x/crypto` was the first); an `x/hasher` needs its own approval and design |
 | 💡 | `tomlx` / `yamlx` — config-format decoders plugging into `cli`'s decoder seam (TOML feasible; YAML only ever as a strict subset under `x/`) |
-| 💡 | `x/sshx`, `x/workerpool` (reusable bounded-worker primitive) |
+| 💡 | `x/token` — JWT on stdlib crypto only; security-sensitive, so `x/` and heavy hardening if attempted |
+| 💡 | `x/workerpool` — reusable bounded-worker primitive |

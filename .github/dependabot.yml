@@ -1,14 +1,11 @@
 version: 2
 updates:
-  # Keeps GitHub Actions pinned versions fresh — the only real dependency surface this repo has.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
 
-  # Zero third-party deps by policy, so the gomod entries stay quiet — they exist
-  # to scream if a dependency ever sneaks into a go.mod. One entry per module;
-  # examples is the likeliest sneak-in point (the one module allowed to require siblings).
+  # One gomod entry per module; x/sshx is the only one with a real dependency.
   - package-ecosystem: "gomod"
     directory: "/cli"
     schedule:
@@ -36,5 +33,10 @@ updates:
 
   - package-ecosystem: "gomod"
     directory: "/x/circuitbreaker"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "gomod"
+    directory: "/x/sshx"
     schedule:
       interval: "weekly"

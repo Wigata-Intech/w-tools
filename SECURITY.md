@@ -16,7 +16,7 @@ For any module in this repo:
 - Panics, memory exhaustion, or unbounded work reachable through untrusted input
 - Anything that silently violates a guarantee the module's README states
 
-Modules whose *purpose* is a security property hold the highest bar — for example, `logger`'s redaction: any input that ships a configured key unredacted, or a mask that reveals more than its configuration allows, is a vulnerability there, not a bug.
+Modules whose *purpose* is a security property hold the highest bar — for example, `logger`'s redaction: any input that ships a configured key unredacted, or a mask that reveals more than its configuration allows, is a vulnerability there, not a bug. The same applies to `x/sshx`'s host-key verification: any path that accepts an unknown or changed host key without the explicit insecure opt-in or the consumer's confirmation is a vulnerability.
 
 ## Supported versions
 

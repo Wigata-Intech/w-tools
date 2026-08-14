@@ -2,7 +2,7 @@
 # `make check` is the whole gate; CI runs the same targets, in the same order.
 # Order: cheap static checks -> compile -> dynamic -> network. Fail fast, fail cheap.
 
-MODULES := cli httpx logger x/circuitbreaker
+MODULES := cli httpx logger x/circuitbreaker x/sshx
 
 .PHONY: check fmt vet lint build test examples vuln cover bench fuzz
 
@@ -48,3 +48,4 @@ bench:
 fuzz:
 	@(cd httpx && go test -fuzz=FuzzRealIP -fuzztime=15s -run='^$$' ./middleware && go test -fuzz=FuzzTraceparent -fuzztime=15s -run='^$$' ./middleware)
 	@(cd logger && go test -fuzz=FuzzMaskString -fuzztime=15s -run='^$$' . && go test -fuzz=FuzzRedact -fuzztime=15s -run='^$$' .)
+	@(cd x/sshx/keys && go test -fuzz=FuzzParsePrivate -fuzztime=15s -run='^$$' . && go test -fuzz=FuzzGenerateComment -fuzztime=15s -run='^$$' .)

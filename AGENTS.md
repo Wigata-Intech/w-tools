@@ -11,19 +11,21 @@ Instructions for AI coding agents working in this repository. Human policy on AI
 ```text
 w-tools/
 ├── go.work          # committed on purpose — do not gitignore it
-├── cli/             # command framework: tree, flag>env>config precedence, help (unreleased)
+├── cli/             # command framework: tree, flag>env>config precedence, help; migrations under cli/migrationx
 ├── logger/          # slog wrapper with key-based redaction (see logger/README.md)
 ├── httpx/           # net/http wrapper: server, groups, JSON + RFC 9457 (see httpx/README.md)
 │   ├── middleware/  # RealIP, RequestID, Trace, Recover, Logger, CORS, RateLimit — same module
 │   ├── client/      # outbound: pooled, timed, breaker hook, traced, logged — same module
 │   └── examples/    # own module, workspace-only — the one place siblings assemble
 └── x/
-    └── circuitbreaker/  # experimental: three-state breaker (own module, deletable)
+    ├── circuitbreaker/  # experimental: three-state breaker (own module, deletable)
+    └── sshx/            # experimental: persistent SSH connection management (own module; the one allowlisted dependency)
+        └── keys/        # same module: key parse/load/generate
 ```
 
 ## Hard rules
 
-1. **Zero third-party dependencies.** Never add a `require` to any `go.mod`. If a task seems to need one, stop and report why instead of adding it.
+1. **Zero third-party dependencies.** Never add a `require` to any `go.mod`. Single exception: a module under `x/` implementing a protocol the standard library doesn't cover may require an **allowlisted `golang.org/x` module** — one maintainer approval per (module, dependency) pair, granted before the `require` is written. Current allowlist: `x/sshx` → `golang.org/x/crypto` (its own `// indirect` graph entries, recorded by `go mod tidy`, ride along). If a task seems to need anything else, stop and report why instead of adding it.
 2. **Modules never require each other.** Root modules stay independent — no cross-module imports inside the family. The `examples/` module is the one place siblings assemble, and it is never tagged.
 3. **CGO-free.** Nothing that breaks `CGO_ENABLED=0` cross-compilation.
 4. **The module's `go.mod` directive is the API floor** — don't call stdlib APIs newer than it. Floors carry a patch version (e.g. `go 1.23.12`) so `govulncheck` analyzes against a patched stdlib; raising a floor is a maintainer decision.

@@ -11,6 +11,7 @@ body:
         - httpx
         - logger
         - x/circuitbreaker
+        - x/sshx
     validations:
       required: true
   - type: input
