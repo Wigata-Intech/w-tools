@@ -2,7 +2,7 @@
 
 > Persistent SSH connections that manage themselves — dial once, run many, heal on failure.
 
-**Status: experimental, under `x/`, unreleased.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Nothing at the w-tools root depends on it — never build anything load-bearing on an `x/` package. Graduation to the root, under a new import path, is the only way it earns stability.
+**Status: experimental, under `x/`, at `v0.1.0`.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Nothing at the w-tools root depends on it — never build anything load-bearing on an `x/` package. Graduation to the root, under a new import path, is the only way it earns stability.
 
 ## TL;DR
 
@@ -123,7 +123,7 @@ Structural costs: one background goroutine per live connection (keepalive) plus 
 
 ## The promises
 
-As of the current (unreleased) state:
+As of `v0.1.0`:
 
 - Host-key verification cannot be disabled by accident: every path is pinned unless you explicitly construct `InsecureAcceptAny`.
 - Command output is never discarded on failure — whatever arrived is returned alongside the error.

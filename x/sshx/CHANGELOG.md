@@ -4,6 +4,8 @@ All notable changes to `x/sshx` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-15
+
 ### Added
 
 - `Dial` with context cancellation and staged typed errors (`network`/`hostkey`/`handshake`); host-key policy errors retrievable with `errors.As` from a failed dial

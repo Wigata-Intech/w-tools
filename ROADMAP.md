@@ -51,15 +51,15 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 
 ## x/sshx
 
-Design approved 2026-08-14 (persistent SSH connection management; first consumer is `kay`). Carries the repo's one dependency exception: `golang.org/x/crypto`, allowlisted for `x/` modules by maintainer decision.
+Design approved 2026-08-14; shipped as `x/sshx/v0.1.0` 2026-08-15 (persistent SSH connection management; first consumer is `kay`). Carries the repo's one dependency exception: `golang.org/x/crypto`, allowlisted for `x/` modules by maintainer decision.
 
 | Status | Item |
 | ------ | ---- |
-| 🚧 | Core client: ctx-first `Dial` with staged typed errors, `Output`/`CombinedOutput` (output survives failure), deadline-guarded `Ping`, keepalive |
-| 🚧 | Fail-closed host-key policies: strict `KnownHosts`, `TOFU` with caller confirmation (single prompt under concurrent first contact), explicit `InsecureAcceptAny` |
-| 🚧 | `Pool`/`Managed`: self-healing per-host connections, jittered exponential backoff, pool-wide dial cap, non-blocking `ErrNotReady`, `OnStateChange` |
-| 🚧 | Stream-based sessions: `Shell` with optional PTY and live `Resize` — the library never touches the local terminal |
-| 🚧 | `keys` subpackage: parse / load with passphrase callback / generate (Ed25519 default, RSA ≥ 2048); fuzzers on the parse and comment round-trip invariants |
+| ✅ | Core client: ctx-first `Dial` with staged typed errors, `Output`/`CombinedOutput` (output survives failure), deadline-guarded `Ping`, keepalive |
+| ✅ | Fail-closed host-key policies: strict `KnownHosts`, `TOFU` with caller confirmation (single prompt under concurrent first contact), explicit `InsecureAcceptAny` |
+| ✅ | `Pool`/`Managed`: self-healing per-host connections, jittered exponential backoff, pool-wide dial cap, non-blocking `ErrNotReady`, `OnStateChange` |
+| ✅ | Stream-based sessions: `Shell` with optional PTY and live `Resize` — the library never touches the local terminal |
+| ✅ | `keys` subpackage: parse / load with passphrase callback / generate (Ed25519 default, RSA ≥ 2048); fuzzers on the parse and comment round-trip invariants |
 | 💡 | ssh-agent auth (`SSH_AUTH_SOCK`) — additive once a real consumer asks |
 | 💡 | Jump/bastion hosts — needs its own design pass |
 
