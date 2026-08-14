@@ -13,6 +13,7 @@ go get github.com/Wigata-Intech/w-tools/cli
 - Migrations are `<unix-timestamp>_<name>.up.sql` / `.down.sql` pairs, minted by `Create` (timestamps, not sequence numbers — two engineers can't collide on merge), shipped via `embed.FS` or a directory
 - Fail-closed on every run: checksum tampering, orphaned history, and late-merged out-of-order migrations all abort; out-of-order applies only with explicit permission
 - Concurrent deploys are serialized by a database-side lock, and an already-applied migration is skipped, never re-executed (`-- migrationx:no-transaction` migrations excepted — deploy those serially)
+- On mysql, a no-transaction migration that fails partway leaves its history row `dirty`; `Up`/`Down` refuse to run again until an operator resolves it by hand, `Status` reports it inline via `Migration.Dirty` instead of failing
 - Rollbacks are audited: warn-level log lines with version, host, and operator — the database keeps no trace of a down by design
 - Trigger/procedure bodies keep their semicolons inside `-- migrationx:statement begin` / `end`
 - Zero third-party dependencies
@@ -60,7 +61,9 @@ if err := m.Up(ctx); err != nil {
 }
 ```
 
-`Up`, `UpByOne`, `UpTo`, `Down`, `DownTo`, `Status`, `Version` — every mutating call verifies first (checksums, orphans, ordering) and each migration runs in its own transaction with the history write, commit or rollback as one unit. On mysql, DDL auto-commits mid-migration — single-DDL-statement migrations are the recommended practice there, and `Status` makes any partial state visible.
+`Up`, `UpByOne`, `UpTo`, `Down`, `DownTo`, `Status`, `Version` — every mutating call verifies first (checksums, orphans, ordering) and each migration runs in its own transaction with the history write, commit or rollback as one unit. On mysql, DDL auto-commits mid-migration — single-DDL-statement migrations are the recommended practice there.
+
+A `-- migrationx:no-transaction` migration carries that same exposure by design: its statements run outside any transaction, so a failure partway through can leave the schema changed with no history row to show it. The history table's `dirty` column tracks that case — `Up`/`Down` refuse to run again while any version is dirty, and `Status` surfaces it via `Migration.Dirty` instead of failing. Resolving it is a manual operator step: verify or repair the schema by hand, then either `UPDATE <table> SET dirty = 0 WHERE version = ...` or delete the row if the migration never really landed, before rerunning. `New` heals a history table created before this column existed, adding it automatically.
 
 ## What it costs
 

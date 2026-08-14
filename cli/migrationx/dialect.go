@@ -121,10 +121,14 @@ func (t rawTx) rollback(ctx context.Context) error {
 	return nil
 }
 
-// mysqlDialect: GET_LOCK serializes concurrent runners; DDL implicitly
-// commits, so a failed multi-statement migration can leave partial DDL
-// applied with no history row — tracked by the dirty column and refused
-// on the next run until an operator resolves it.
+// mysqlDialect: GET_LOCK serializes concurrent runners. DDL implicitly
+// commits mid-transaction, so a tx-path migration with more than one DDL
+// statement can half-apply on a later statement's failure with no
+// history row to show it — single-DDL-statement migrations are the
+// recommended practice there; this dialect does not track that case. A
+// no-transaction migration carries the same exposure by design, and for
+// that case the dirty column tracks the partial state and refuses the
+// next run until an operator resolves it.
 type mysqlDialect struct{}
 
 func (mysqlDialect) createTable(ctx context.Context, conn *sql.Conn, table string) error {
@@ -210,6 +214,12 @@ func (t sqlTx) rollback(context.Context) error { return t.tx.Rollback() }
 // transactional, so a no-transaction sqlite script carries no equivalent
 // state to track.
 type dirtyOps interface {
+	// ensureDirtyColumn adds the dirty column to a history table created
+	// before this column existed, so every other dirtyOps method can
+	// assume its presence. New calls it once, after createTable and
+	// before any migration runs.
+	ensureDirtyColumn(ctx context.Context, conn *sql.Conn, table string) error
+
 	// markDirty inserts the history row for version with dirty set,
 	// before a no-transaction up migration's statements run.
 	markDirty(ctx context.Context, conn *sql.Conn, table string, version int64, name, checksum, appliedAt string) error
@@ -221,6 +231,21 @@ type dirtyOps interface {
 
 	// dirtyVersions reports every version left dirty by a previous run.
 	dirtyVersions(ctx context.Context, conn *sql.Conn, table string) ([]int64, error)
+}
+
+func (mysqlDialect) ensureDirtyColumn(ctx context.Context, conn *sql.Conn, table string) error {
+	var one int64
+	err := conn.QueryRowContext(ctx,
+		"SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = 'dirty'",
+		table).Scan(&one)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	_, err = conn.ExecContext(ctx, "ALTER TABLE "+table+" ADD COLUMN dirty TINYINT(1) NOT NULL DEFAULT 0") // #nosec G202 -- table is validated [A-Za-z0-9_]+ at New
+	return err
 }
 
 func (mysqlDialect) markDirty(ctx context.Context, conn *sql.Conn, table string, version int64, name, checksum, appliedAt string) error {

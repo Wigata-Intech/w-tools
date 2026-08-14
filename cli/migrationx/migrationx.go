@@ -61,6 +61,7 @@ type Migration struct {
 	Applied    bool
 	AppliedAt  time.Time // zero when not applied, or when the stored value was unreadable
 	OutOfOrder bool      // pending and older than the newest applied
+	Dirty      bool      // applied but left dirty by a previous no-transaction run; resolve manually, see doc.go
 }
 
 // Migrator applies, rolls back, and reports migrations. Create one with
@@ -130,6 +131,11 @@ func New(db *sql.DB, fsys fs.FS, cfg Config) (*Migrator, error) {
 	if err := d.createTable(ctx, conn, table); err != nil {
 		return nil, fmt.Errorf("migrationx: creating %s: %w", table, err)
 	}
+	if dirtyD, ok := d.(dirtyOps); ok {
+		if err := dirtyD.ensureDirtyColumn(ctx, conn, table); err != nil {
+			return nil, fmt.Errorf("migrationx: healing %s: %w", table, err)
+		}
+	}
 	return m, nil
 }
 
@@ -161,7 +167,9 @@ func (m *Migrator) DownTo(ctx context.Context, version int64) error {
 }
 
 // Status reports every migration the filesystem or the history table
-// knows, in version order. It takes no lock.
+// knows, in version order. It takes no lock. A version left dirty by a
+// previous no-transaction run is reported with Dirty set, never as an
+// error — Up and Down are the calls that refuse dirty state.
 func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 	conn, err := m.db.Conn(ctx)
 	if err != nil {
@@ -176,7 +184,8 @@ func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 	if err := m.verify(applied); err != nil {
 		return nil, err
 	}
-	if err := m.checkDirty(ctx, conn); err != nil {
+	dirty, err := m.dirtySet(ctx, conn)
+	if err != nil {
 		return nil, err
 	}
 
@@ -191,6 +200,7 @@ func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 		entry := Migration{Version: mig.version, Name: mig.name, Applied: ok}
 		if ok {
 			entry.AppliedAt = row.appliedAt
+			entry.Dirty = dirty[mig.version]
 		} else {
 			entry.OutOfOrder = mig.version < maxApplied
 		}
@@ -199,7 +209,9 @@ func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 	return out, nil
 }
 
-// Version reports the newest applied version, 0 when none.
+// Version reports the newest applied version, 0 when none. Like Status,
+// it takes no lock and does not fail on dirty state — Up and Down are
+// the calls that refuse it.
 func (m *Migrator) Version(ctx context.Context) (int64, error) {
 	conn, err := m.db.Conn(ctx)
 	if err != nil {
@@ -212,9 +224,6 @@ func (m *Migrator) Version(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	if err := m.verify(applied); err != nil {
-		return 0, err
-	}
-	if err := m.checkDirty(ctx, conn); err != nil {
 		return 0, err
 	}
 	var maxApplied int64
@@ -388,20 +397,40 @@ func (m *Migrator) verify(applied map[int64]appliedRow) error {
 
 // checkDirty fails closed when a previous no-transaction run left a
 // version dirty: the dialect owns clearing it during a run, an operator
-// owns clearing it after a failure — this method only ever refuses.
+// owns clearing it after a failure — this method only ever refuses. Only
+// Up and Down call it; Status and Version report dirty state instead of
+// failing on it.
 func (m *Migrator) checkDirty(ctx context.Context, conn *sql.Conn) error {
+	dirty, err := m.dirtySet(ctx, conn)
+	if err != nil {
+		return err
+	}
+	if len(dirty) == 0 {
+		return nil
+	}
+	versions := make([]int64, 0, len(dirty))
+	for v := range dirty {
+		versions = append(versions, v)
+	}
+	return fmt.Errorf("%w: %s (resolve manually before rerunning)", errDirty, dirtyVersionList(versions))
+}
+
+// dirtySet reports every version a previous no-transaction run left
+// dirty, empty when the dialect tracks no such state.
+func (m *Migrator) dirtySet(ctx context.Context, conn *sql.Conn) (map[int64]bool, error) {
 	dirtyD, ok := m.dialect.(dirtyOps)
 	if !ok {
-		return nil
+		return map[int64]bool{}, nil
 	}
 	versions, err := dirtyD.dirtyVersions(ctx, conn, m.table)
 	if err != nil {
-		return fmt.Errorf("migrationx: reading dirty state: %w", err)
+		return nil, fmt.Errorf("migrationx: reading dirty state: %w", err)
 	}
-	if len(versions) == 0 {
-		return nil
+	set := make(map[int64]bool, len(versions))
+	for _, v := range versions {
+		set[v] = true
 	}
-	return fmt.Errorf("%w: %s (resolve manually before rerunning)", errDirty, dirtyVersionList(versions))
+	return set, nil
 }
 
 // dirtyVersionList renders dirty versions for the refusal error, sorted
