@@ -59,7 +59,7 @@ type Migration struct {
 	Name       string
 	Applied    bool
 	AppliedAt  time.Time // zero when not applied, or when the stored value was unreadable
-	OutOfOrder bool      // pending and older than the newest applied
+	OutOfOrder bool      // pending and older than the newest applied migration still present on the filesystem
 	Orphaned   bool      // applied but its migration file is missing from the filesystem
 }
 
@@ -169,8 +169,11 @@ func (m *Migrator) DownTo(ctx context.Context, version int64) error {
 // Status reports every migration the filesystem or the history table
 // knows, in version order. An applied migration whose file is missing is
 // reported with Orphaned set instead of failing the call — Up, Down, and
-// Version still fail closed on the same condition via verify. It takes no
-// lock.
+// Version still fail closed on the same condition via verify. A checksum
+// mismatch still fails the call, though: the row exists on both sides, so
+// there is no honest single Migration to render for it, and drift between
+// what ran and what's on disk is the more dangerous state — orphans are
+// reported inline, checksum mismatches fail closed. It takes no lock.
 func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 	conn, err := m.db.Conn(ctx)
 	if err != nil {
