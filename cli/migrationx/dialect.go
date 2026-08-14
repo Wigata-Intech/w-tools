@@ -123,7 +123,8 @@ func (t rawTx) rollback(ctx context.Context) error {
 
 // mysqlDialect: GET_LOCK serializes concurrent runners; DDL implicitly
 // commits, so a failed multi-statement migration can leave partial DDL
-// applied with no history row — documented loudly, visible via Status.
+// applied with no history row — tracked by the dirty column and refused
+// on the next run until an operator resolves it.
 type mysqlDialect struct{}
 
 func (mysqlDialect) createTable(ctx context.Context, conn *sql.Conn, table string) error {
@@ -131,7 +132,8 @@ func (mysqlDialect) createTable(ctx context.Context, conn *sql.Conn, table strin
 	version    BIGINT PRIMARY KEY,
 	name       VARCHAR(255) NOT NULL,
 	checksum   CHAR(64) NOT NULL,
-	applied_at DATETIME NOT NULL
+	applied_at DATETIME NOT NULL,
+	dirty      TINYINT(1) NOT NULL DEFAULT 0
 )`)
 	return err
 }
@@ -199,3 +201,57 @@ func (t sqlTx) exec(ctx context.Context, query string, args ...any) error {
 
 func (t sqlTx) commit(context.Context) error   { return t.tx.Commit() }
 func (t sqlTx) rollback(context.Context) error { return t.tx.Rollback() }
+
+// dirtyOps is the optional dialect capability for a no-transaction
+// migration whose statements run with no transaction boundary: mysql's
+// DDL implicitly commits, so a failed multi-statement script can leave
+// the database partially changed with no history row to show it.
+// mysqlDialect is the only implementation — sqlite's DDL is itself
+// transactional, so a no-transaction sqlite script carries no equivalent
+// state to track.
+type dirtyOps interface {
+	// markDirty inserts the history row for version with dirty set,
+	// before a no-transaction up migration's statements run.
+	markDirty(ctx context.Context, conn *sql.Conn, table string, version int64, name, checksum, appliedAt string) error
+
+	// setDirty flips the dirty flag on version's existing history row:
+	// true before a no-transaction down migration's statements run,
+	// false once an up migration's statements have succeeded.
+	setDirty(ctx context.Context, conn *sql.Conn, table string, version int64, dirty bool) error
+
+	// dirtyVersions reports every version left dirty by a previous run.
+	dirtyVersions(ctx context.Context, conn *sql.Conn, table string) ([]int64, error)
+}
+
+func (mysqlDialect) markDirty(ctx context.Context, conn *sql.Conn, table string, version int64, name, checksum, appliedAt string) error {
+	insert := "INSERT INTO " + table + " (version, name, checksum, applied_at, dirty) VALUES (?, ?, ?, ?, 1)" // #nosec G202 -- table is validated [A-Za-z0-9_]+ at New
+	_, err := conn.ExecContext(ctx, insert, version, name, checksum, appliedAt)
+	return err
+}
+
+func (mysqlDialect) setDirty(ctx context.Context, conn *sql.Conn, table string, version int64, dirty bool) error {
+	value := 0
+	if dirty {
+		value = 1
+	}
+	_, err := conn.ExecContext(ctx, "UPDATE "+table+" SET dirty = ? WHERE version = ?", value, version) // #nosec G202 -- table is validated [A-Za-z0-9_]+ at New
+	return err
+}
+
+func (mysqlDialect) dirtyVersions(ctx context.Context, conn *sql.Conn, table string) ([]int64, error) {
+	rows, err := conn.QueryContext(ctx, "SELECT version FROM "+table+" WHERE dirty = 1") // #nosec G202 -- table is validated [A-Za-z0-9_]+ at New
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []int64
+	for rows.Next() {
+		var version int64
+		if err := rows.Scan(&version); err != nil {
+			return nil, err
+		}
+		out = append(out, version)
+	}
+	return out, rows.Err()
+}

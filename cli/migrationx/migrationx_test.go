@@ -84,6 +84,25 @@ func mxAssertApplied(t *testing.T, s *fakeState, want []int64) {
 	}
 }
 
+// mxAssertDirty compares the versions still flagged dirty, order-blind.
+func mxAssertDirty(t *testing.T, s *fakeState, want []int64) {
+	t.Helper()
+	s.mu.Lock()
+	var got []int64
+	for v, dirty := range s.dirty {
+		if dirty {
+			got = append(got, v)
+		}
+	}
+	s.mu.Unlock()
+	slices.Sort(got)
+	want = slices.Clone(want)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("dirty versions = %v, want %v", got, want)
+	}
+}
+
 // mxAssertCounts checks executedContaining for every substring.
 func mxAssertCounts(t *testing.T, s *fakeState, counts map[string]int) {
 	t.Helper()
@@ -130,6 +149,7 @@ type mxInput struct {
 type mxExpected struct {
 	err     string
 	applied []int64
+	dirty   []int64
 	counts  map[string]int
 	order   []string
 }
@@ -170,6 +190,7 @@ func mxRun(t *testing.T, input mxInput, call func(context.Context, *migrationx.M
 		t.Fatalf("error = %v, want %q", err, expected.err)
 	}
 	mxAssertApplied(t, state, expected.applied)
+	mxAssertDirty(t, state, expected.dirty)
 	mxAssertCounts(t, state, expected.counts)
 	if len(expected.order) > 0 {
 		mxAssertOrder(t, state, expected.order)
@@ -215,6 +236,7 @@ func TestNew(t *testing.T) {
 				counts: map[string]int{
 					"CREATE TABLE IF NOT EXISTS migration_histories": 1,
 					"BIGINT PRIMARY KEY":                             1,
+					"dirty      TINYINT(1) NOT NULL DEFAULT 0":       1,
 				},
 			},
 		},
@@ -353,6 +375,53 @@ func TestUp(t *testing.T) {
 					"COMMIT":                          0,
 					"CREATE INDEX nx1":                1,
 					"INSERT INTO migration_histories": 1,
+					"dirty":                           0,
+				},
+			},
+		},
+		{
+			name: "mysql no-transaction marks dirty before running and clears after success",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_nx.up.sql": mxUpNoTx},
+			},
+			expected: mxExpected{
+				applied: []int64{100},
+				counts: map[string]int{
+					", dirty) VALUES":  1,
+					"SET dirty = ?":    1,
+					"CREATE INDEX nx1": 1,
+				},
+				order: []string{"INSERT INTO migration_histories", "CREATE INDEX nx1", "UPDATE migration_histories"},
+			},
+		},
+		{
+			name: "mysql no-transaction premark failure aborts before statements",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_nx.up.sql": mxUpNoTx},
+				failOn:  map[string]error{", dirty) VALUES": errMxBoom},
+			},
+			expected: mxExpected{
+				err: "migrationx: applying 100_nx: boom",
+				counts: map[string]int{
+					"CREATE INDEX nx1": 0,
+				},
+			},
+		},
+		{
+			name: "mysql no-transaction failing statement leaves the version dirty",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_nx.up.sql": mxUpNoTx},
+				failOn:  map[string]error{"nx1": errMxBoom},
+			},
+			expected: mxExpected{
+				err:     "migrationx: applying 100_nx: boom (statement: CREATE INDEX nx1 ON a1 (id))",
+				applied: []int64{100},
+				dirty:   []int64{100},
+				counts: map[string]int{
+					"SET dirty = ?": 0,
 				},
 			},
 		},
@@ -451,6 +520,24 @@ func TestUp(t *testing.T) {
 			expected: mxExpected{
 				err:     "migrationx: applied migration missing from the filesystem: 999_ghost",
 				applied: []int64{999},
+			},
+		},
+		{
+			name: "mysql refuses when dirty versions are already present",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_nx.up.sql": mxUpNoTx},
+				seed: func(s *fakeState) {
+					s.setDirty(200)
+					s.setDirty(100)
+				},
+			},
+			expected: mxExpected{
+				err:   "migrationx: dirty migration from a previous no-transaction run: 100, 200 (resolve manually before rerunning)",
+				dirty: []int64{100, 200},
+				counts: map[string]int{
+					"CREATE INDEX nx1": 0,
+				},
 			},
 		},
 		{
@@ -699,6 +786,44 @@ func TestDown(t *testing.T) {
 					"BEGIN":                           0,
 					"DROP INDEX nx1":                  1,
 					"DELETE FROM migration_histories": 1,
+					"dirty":                           0,
+				},
+			},
+		},
+		{
+			name: "mysql no-transaction down marks dirty before running, delete clears it",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_nx.up.sql": mxUpNoTx, "100_nx.down.sql": mxDownNoTx},
+				seed: func(s *fakeState) {
+					s.setApplied(100, "nx", mxChecksum(mxUpNoTx), mxSeededAt)
+				},
+			},
+			expected: mxExpected{
+				counts: map[string]int{
+					"SET dirty = ?":                   1,
+					"DROP INDEX nx1":                  1,
+					"DELETE FROM migration_histories": 1,
+				},
+				order: []string{"UPDATE migration_histories", "DROP INDEX nx1", "DELETE FROM migration_histories"},
+			},
+		},
+		{
+			name: "mysql no-transaction down failing statement leaves the version dirty",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_nx.up.sql": mxUpNoTx, "100_nx.down.sql": mxDownNoTx},
+				seed: func(s *fakeState) {
+					s.setApplied(100, "nx", mxChecksum(mxUpNoTx), mxSeededAt)
+				},
+				failOn: map[string]error{"DROP INDEX nx1": errMxBoom},
+			},
+			expected: mxExpected{
+				err:     "migrationx: rolling back 100_nx: boom (statement: DROP INDEX nx1)",
+				applied: []int64{100},
+				dirty:   []int64{100},
+				counts: map[string]int{
+					"DELETE FROM migration_histories": 0,
 				},
 			},
 		},
@@ -746,6 +871,25 @@ func TestDown(t *testing.T) {
 			expected: mxExpected{
 				err:     "migrationx: applied migration missing from the filesystem: 999_ghost",
 				applied: []int64{999},
+			},
+		},
+		{
+			name: "mysql refuses when a dirty version is already present",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_nx.up.sql": mxUpNoTx, "100_nx.down.sql": mxDownNoTx},
+				seed: func(s *fakeState) {
+					s.setApplied(100, "nx", mxChecksum(mxUpNoTx), mxSeededAt)
+					s.setDirty(100)
+				},
+			},
+			expected: mxExpected{
+				err:     "migrationx: dirty migration from a previous no-transaction run: 100 (resolve manually before rerunning)",
+				applied: []int64{100},
+				dirty:   []int64{100},
+				counts: map[string]int{
+					"DROP INDEX nx1": 0,
+				},
 			},
 		},
 		{
@@ -994,6 +1138,17 @@ func TestStatus(t *testing.T) {
 			},
 			expected: expected{err: "migrationx: applied migration missing from the filesystem: 999_ghost"},
 		},
+		{
+			name: "mysql dirty version fails closed",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_a.up.sql": mxUpA},
+				seed: func(s *fakeState) {
+					s.setDirty(100)
+				},
+			},
+			expected: expected{err: "migrationx: dirty migration from a previous no-transaction run: 100 (resolve manually before rerunning)"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1120,6 +1275,17 @@ func TestVersion(t *testing.T) {
 			},
 			expected: expected{err: "migrationx: applied migration missing from the filesystem: 999_ghost"},
 		},
+		{
+			name: "mysql dirty version fails closed",
+			input: mxInput{
+				dialect: migrationx.DialectMySQL,
+				files:   map[string]string{"100_a.up.sql": mxUpA},
+				seed: func(s *fakeState) {
+					s.setDirty(100)
+				},
+			},
+			expected: expected{err: "migrationx: dirty migration from a previous no-transaction run: 100 (resolve manually before rerunning)"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1199,6 +1365,29 @@ func TestFaultPaths(t *testing.T) {
 		state.mu.Unlock()
 		if _, err := m.Version(context.Background()); err == nil || !strings.Contains(err.Error(), "reading migration_histories") {
 			t.Fatalf("err = %v, want rows error reading the table", err)
+		}
+	})
+
+	t.Run("dirty state read failure wraps the error", func(t *testing.T) {
+		db, state := fakeDB(t)
+		m := mxNewMigrator(t, db, migrationx.DialectMySQL, map[string]string{"100_a.up.sql": mxUpA})
+		state.mu.Lock()
+		state.failOn["WHERE dirty = 1"] = errMxBoom
+		state.mu.Unlock()
+		if _, err := m.Version(context.Background()); err == nil || !strings.Contains(err.Error(), "reading dirty state: boom") {
+			t.Fatalf("err = %v, want wrapped dirty-read failure", err)
+		}
+	})
+
+	t.Run("mistyped dirty row fails the read", func(t *testing.T) {
+		db, state := fakeDB(t)
+		m := mxNewMigrator(t, db, migrationx.DialectMySQL, map[string]string{"100_a.up.sql": mxUpA})
+		state.setDirty(200)
+		state.mu.Lock()
+		state.badDirtyRow = true
+		state.mu.Unlock()
+		if _, err := m.Version(context.Background()); err == nil || !strings.Contains(err.Error(), "reading dirty state") {
+			t.Fatalf("err = %v, want scan failure reading the dirty versions", err)
 		}
 	})
 }

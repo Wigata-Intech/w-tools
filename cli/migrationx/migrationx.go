@@ -11,6 +11,7 @@ import (
 	"os/user"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -24,6 +25,7 @@ var (
 	errNoDown           = errors.New("migrationx: no down migration")
 	errNothingApplied   = errors.New("migrationx: nothing applied")
 	errBadLockTimeout   = errors.New("migrationx: LockTimeout must be at least one second")
+	errDirty            = errors.New("migrationx: dirty migration from a previous no-transaction run")
 )
 
 var tablePattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
@@ -174,6 +176,9 @@ func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 	if err := m.verify(applied); err != nil {
 		return nil, err
 	}
+	if err := m.checkDirty(ctx, conn); err != nil {
+		return nil, err
+	}
 
 	var maxApplied int64
 	for version := range applied {
@@ -209,6 +214,9 @@ func (m *Migrator) Version(ctx context.Context) (int64, error) {
 	if err := m.verify(applied); err != nil {
 		return 0, err
 	}
+	if err := m.checkDirty(ctx, conn); err != nil {
+		return 0, err
+	}
 	var maxApplied int64
 	for version := range applied {
 		maxApplied = max(maxApplied, version)
@@ -225,6 +233,9 @@ func (m *Migrator) up(ctx context.Context, limit int, target int64) error {
 			return err
 		}
 		if err := m.verify(applied); err != nil {
+			return err
+		}
+		if err := m.checkDirty(ctx, conn); err != nil {
 			return err
 		}
 
@@ -274,6 +285,9 @@ func (m *Migrator) down(ctx context.Context, target int64) error {
 			return err
 		}
 		if err := m.verify(applied); err != nil {
+			return err
+		}
+		if err := m.checkDirty(ctx, conn); err != nil {
 			return err
 		}
 		if len(applied) == 0 {
@@ -372,6 +386,36 @@ func (m *Migrator) verify(applied map[int64]appliedRow) error {
 	return nil
 }
 
+// checkDirty fails closed when a previous no-transaction run left a
+// version dirty: the dialect owns clearing it during a run, an operator
+// owns clearing it after a failure — this method only ever refuses.
+func (m *Migrator) checkDirty(ctx context.Context, conn *sql.Conn) error {
+	dirtyD, ok := m.dialect.(dirtyOps)
+	if !ok {
+		return nil
+	}
+	versions, err := dirtyD.dirtyVersions(ctx, conn, m.table)
+	if err != nil {
+		return fmt.Errorf("migrationx: reading dirty state: %w", err)
+	}
+	if len(versions) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: %s (resolve manually before rerunning)", errDirty, dirtyVersionList(versions))
+}
+
+// dirtyVersionList renders dirty versions for the refusal error, sorted
+// for a deterministic message regardless of the dialect's row order.
+func dirtyVersionList(versions []int64) string {
+	sorted := slices.Clone(versions)
+	slices.Sort(sorted)
+	parts := make([]string, len(sorted))
+	for i, v := range sorted {
+		parts[i] = strconv.FormatInt(v, 10)
+	}
+	return strings.Join(parts, ", ")
+}
+
 // apply runs one up migration and records it, transactionally where the
 // file allows.
 func (m *Migrator) apply(ctx context.Context, conn *sql.Conn, mig migration) error {
@@ -382,10 +426,20 @@ func (m *Migrator) apply(ctx context.Context, conn *sql.Conn, mig migration) err
 	var err error
 	var skipped bool
 	if mig.up.noTx {
-		skipped, err = m.execRaw(ctx, conn, mig.version, mig.up.statements, func() error {
+		record := func() error {
 			_, e := conn.ExecContext(ctx, insert, mig.version, mig.name, mig.checksum, appliedAt)
 			return e
-		})
+		}
+		var premark func() error
+		if dirtyD, ok := m.dialect.(dirtyOps); ok {
+			premark = func() error {
+				return dirtyD.markDirty(ctx, conn, m.table, mig.version, mig.name, mig.checksum, appliedAt)
+			}
+			record = func() error {
+				return dirtyD.setDirty(ctx, conn, m.table, mig.version, false)
+			}
+		}
+		skipped, err = m.execRaw(ctx, conn, mig.version, mig.up.statements, premark, record)
 	} else {
 		skipped, err = m.execTx(ctx, conn, mig.version, false, mig.up.statements, func(tx txOps) error {
 			return tx.exec(ctx, insert, mig.version, mig.name, mig.checksum, appliedAt)
@@ -423,7 +477,13 @@ func (m *Migrator) rollback(ctx context.Context, conn *sql.Conn, mig migration) 
 
 	var err error
 	if mig.down.noTx {
-		_, err = m.execRaw(ctx, conn, -1, mig.down.statements, func() error {
+		var premark func() error
+		if dirtyD, ok := m.dialect.(dirtyOps); ok {
+			premark = func() error {
+				return dirtyD.setDirty(ctx, conn, m.table, mig.version, true)
+			}
+		}
+		_, err = m.execRaw(ctx, conn, -1, mig.down.statements, premark, func() error {
 			_, e := conn.ExecContext(ctx, remove, mig.version)
 			return e
 		})
@@ -480,8 +540,10 @@ func (m *Migrator) execTx(ctx context.Context, conn *sql.Conn, version int64, do
 // annotation — then the history write. version >= 0 probes the history
 // row first so a concurrent runner's finished apply is skipped, never
 // re-executed: for an unprotected data backfill, running twice is the
-// incident.
-func (m *Migrator) execRaw(ctx context.Context, conn *sql.Conn, version int64, statements []string, record func() error) (bool, error) {
+// incident. premark, when non-nil, runs after the probe and before the
+// statements — the dirty-state hook for dialects where a failed
+// statement can leave the database changed with nothing to show it.
+func (m *Migrator) execRaw(ctx context.Context, conn *sql.Conn, version int64, statements []string, premark, record func() error) (bool, error) {
 	if version >= 0 {
 		exists, err := versionExists(ctx, conn, m.table, version)
 		if err != nil {
@@ -489,6 +551,11 @@ func (m *Migrator) execRaw(ctx context.Context, conn *sql.Conn, version int64, s
 		}
 		if exists {
 			return true, nil
+		}
+	}
+	if premark != nil {
+		if err := premark(); err != nil {
+			return false, err
 		}
 	}
 	for _, stmt := range statements {
