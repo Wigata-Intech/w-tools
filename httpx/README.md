@@ -57,6 +57,8 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 
 Errors default to [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457): `{"type":"about:blank","title":"Bad Request","status":400,"detail":"..."}` — and services with their own error format swap it via `ErrorWriter`.
 
+### Using the middleware
+
 Middleware wires in canonical order — outermost first, so the logger sees the real client IP, the IDs, and the panic-turned-500 with its latency:
 
 ```go
@@ -69,7 +71,18 @@ s.Use(
 )
 ```
 
-Your own middleware plugs into the same slots — the chain type is the ecosystem's `func(http.Handler) http.Handler`, so anything written for that convention drops in unchanged.
+Your own middleware plugs into the same slots — the chain type is the ecosystem's `func(http.Handler) http.Handler`, so anything written for that convention drops in unchanged. Per-middleware behavior and gotchas: [middleware/README.md](middleware/).
+
+### Using the client
+
+The outbound half: pooling tuned for services, a timeout you can't turn off, a breaker seam, trace propagation, redaction-inheriting logging.
+
+```go
+c := client.New(client.Config{Log: log.Slog(), Breaker: breaker})
+resp, err := c.Get(ctx, "https://api.upstream.example/orders")
+```
+
+Build one client per upstream at boot and reuse it — the pool is the point. Details: [client/README.md](client/).
 
 ### Recipe: pprof on an internal debug server
 
