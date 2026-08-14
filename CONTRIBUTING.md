@@ -12,7 +12,7 @@ Thank you for considering it. This project is open to contributions on purpose �
 
 These are non-negotiable and enforced in review:
 
-1. **Standard library first, zero dependencies.** No `go.mod` in this repo lists a third-party dependency. If you believe one is justified, make that case in an issue — adding one is a maintainer decision, never a side effect of a PR.
+1. **Standard library first, zero dependencies.** No root `go.mod` in this repo lists a third-party dependency. The single carve-out: an `x/` module implementing a protocol the standard library doesn't cover may use an allowlisted, Go-team-maintained `golang.org/x` module (today: `x/sshx` → `golang.org/x/crypto`). If you believe another is justified, make that case in an issue — adding one is a maintainer decision, never a side effect of a PR.
 2. **CGO-free.** Everything cross-compiles with `CGO_ENABLED=0`.
 3. **Simplicity first.** Minimum code that solves the problem. No speculative abstraction, no configurability nobody asked for, no interfaces with one implementation.
 4. **Surgical changes.** Touch only what your change requires. Don't reformat, rename, or "improve" adjacent code — a PR that mixes its purpose with drive-by cleanup will be asked to split.
@@ -113,3 +113,15 @@ Everyone interacting here is covered by the [Code of Conduct](CODE_OF_CONDUCT.md
 ## Releases
 
 Maintainers tag releases (`logger/v0.1.0` — per-module tags). Contributors never need to touch versioning.
+
+The maintainer checklist, in order — the tag must point at a commit where all of this is already true:
+
+1. Re-measure benchmarks/fuzz pinned to the current toolchain (`GOTOOLCHAIN=goX.Y.Z`); reconcile every summary table with its raw log
+2. `CHANGELOG.md`: move `[Unreleased]` content under `[x.y.z] - <date>`, keep an empty `[Unreleased]`
+3. Module README: Status line, promises header (`As of vX.Y.Z`), badge + install line on a first release
+4. Root README: the packages-table version cell for **every** module in the train, not just the new one
+5. `ROADMAP.md`: 🚧 rows → ✅ shipped
+6. `make check` green at that commit
+7. Commit and push the docs, then tag that commit — and push tags in batches of **three or fewer** (GitHub creates no workflow events for a push of more than three tags, so release.yml silently never runs)
+8. Verify: the Release workflow minted each GitHub release, every module resolves via `GOPROXY=proxy.golang.org`, pkg.go.dev renders the new README
+9. Post-tag: re-pin any `examples/` module that consumes the released module; small follow-up commit
