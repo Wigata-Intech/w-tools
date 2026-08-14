@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: [httpx, logger, x/circuitbreaker]
+        module: [cli, httpx, logger, x/circuitbreaker]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -79,3 +79,12 @@ jobs:
         run: |
           out=$(go run ./breaker)
           echo "$out" | grep -q 'CIRCUIT OPEN'
+
+      - name: run the cli env-binding proof
+        working-directory: cli/examples
+        run: |
+          go vet ./... && go build ./...
+          out=$(DEMO_GREETING=hallo go run ./demo greet World)
+          echo "$out" | grep -q 'hallo, World'
+          out=$(go run ./service --help)
+          echo "$out" | grep -q 'migrate'

@@ -3,7 +3,9 @@
 > Small Go tools, forged in production, free of dependencies — and shared.
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/logger.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/logger)
+[![logger](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/logger.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/logger)
+[![httpx](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/httpx.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/httpx)
+[![x/circuitbreaker](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/x/circuitbreaker.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/x/circuitbreaker)
 
 `w-tools` is [Wigata InTech](https://wigataintech.com)'s open-source Go toolbox: focused packages we run in our own production services first, and publish because they're useful beyond us. One discipline holds everything together — **standard library first, zero dependencies, CGO-free**. If a package here can't justify itself without pulling in half the ecosystem, it doesn't ship.
 
@@ -18,6 +20,7 @@
 
 | Package | What it does | Status |
 | ------- | ------------ | ------ |
+| [`cli`](cli/) | Command framework: command tree, flag > env > config > default precedence, struct binding, generated help; SQL migrations via `cli/migrationx` planned before the first tag | 🚧 unreleased |
 | [`httpx`](httpx/) | `net/http` wrapper: server with production timeouts, route groups, all methods incl. RFC 10008 `QUERY`, RFC 9457 errors, middleware, outbound client | v0.1.0 |
 | [`logger`](logger/) | `log/slog` wrapper: JSON-first, service metadata on every line, compliance-grade key redaction and masking | v0.1.1 |
 | [`x/circuitbreaker`](x/circuitbreaker/) | Three-state circuit breaker: sliding-window trip, half-open probes, native `net/http` and `httpx/client` integration | **experimental** v0.1.0 |
@@ -32,9 +35,11 @@ Each package is its own module — pull only what you need:
 
 ```bash
 go get github.com/Wigata-Intech/w-tools/logger@latest
+go get github.com/Wigata-Intech/w-tools/httpx@latest
+go get github.com/Wigata-Intech/w-tools/x/circuitbreaker@latest   # experimental — see the x/ contract above
 ```
 
-Importing `logger` brings in `logger` and nothing else. No transitive surprises, ever — check `logger/go.mod` and enjoy the silence.
+Importing any of them brings in that module and nothing else. No transitive surprises, ever — check any `go.mod` here and enjoy the silence.
 
 ## Versioning
 

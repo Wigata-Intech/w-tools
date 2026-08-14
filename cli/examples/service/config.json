@@ -1,0 +1,4 @@
+{
+  "log-level": "warn",
+  "http-addr": ":9090"
+}

@@ -1,6 +1,8 @@
 go 1.23.12
 
 use (
+	./cli
+	./cli/examples
 	./httpx
 	./httpx/examples
 	./logger

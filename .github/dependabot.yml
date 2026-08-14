@@ -10,6 +10,16 @@ updates:
   # to scream if a dependency ever sneaks into a go.mod. One entry per module;
   # examples is the likeliest sneak-in point (the one module allowed to require siblings).
   - package-ecosystem: "gomod"
+    directory: "/cli"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "gomod"
+    directory: "/cli/examples"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "gomod"
     directory: "/httpx"
     schedule:
       interval: "weekly"
