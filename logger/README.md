@@ -2,9 +2,15 @@
 
 > Set it up once, and sensitive data stops appearing in your logs. That's the whole pitch.
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/logger.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/logger)
+
 **Status: v0, released.** Production-track at Wigata InTech. Semver v0 applies: the API can still move between minor versions until `v1.0.0`, which lands only after surviving production use.
 
 ## TL;DR
+
+```bash
+go get github.com/Wigata-Intech/w-tools/logger
+```
 
 - One call to a working logger: JSON output, your service's identity (`env`, `version`, `app`, `protocol`) on every line, level from config
 - Redaction that can't be forgotten: keys you name are replaced or partially masked wherever they appear — top level, nested, or inside a struct someone passed whole

@@ -4,6 +4,11 @@ All notable changes to `x/circuitbreaker` are documented here. Format follows [K
 
 ## [Unreleased]
 
+### Changed
+
+- README: pkg.go.dev reference badge under the pitch, and the `go get` install command opening How-it-solves-it
+
+
 
 
 ## [0.1.0] - 2026-08-12

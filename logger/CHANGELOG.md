@@ -4,6 +4,11 @@ All notable changes to `logger`. Format follows [Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### Changed
+
+- README: pkg.go.dev reference badge under the pitch, and the `go get` install command opening How-it-solves-it
+
+
 ## [0.1.1] - 2026-08-12
 
 ### Added

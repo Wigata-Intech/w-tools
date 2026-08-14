@@ -76,9 +76,11 @@ Every module's `README.md` follows the same human-first shape — a reader shoul
 # <package>
 > One-line pitch — the whole value in one sentence.
 
+[pkg.go.dev Go Reference badge — once the module has a tag]
+
 **Status:** where the package is on the v0 → v1 road, and what semver means right now.
 
-## TL;DR                      3–5 bullets: what you get, no prose
+## TL;DR                      the `go get` command first, then 3–5 bullets: what you get, no prose
 ## What problem this solves   human prose — the pain first, then how the package removes it
 ## How it solves it           minimal working code, plus a pointer to examples/
 ## Why it matters             what this buys the reader: standards, guarantees, no lock-in

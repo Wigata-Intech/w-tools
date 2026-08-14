@@ -2,9 +2,15 @@
 
 > Everything `net/http` makes you wire by hand — timeouts, groups, middleware, JSON errors — without ever hiding `net/http` from you.
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/httpx.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/httpx)
+
 **Status: v0, released.** Production-track at Wigata InTech. Semver v0 applies: the API can still move between minor versions until `v1.0.0`, which lands only after surviving production use.
 
 ## TL;DR
+
+```bash
+go get github.com/Wigata-Intech/w-tools/httpx
+```
 
 - A server that's production-safe by default: every timeout on, graceful shutdown in one call
 - Route groups with shared prefixes and middleware over the stdlib `ServeMux` — every method routable, including RFC 10008 `QUERY`
@@ -107,7 +113,7 @@ Under concurrency the chain holds flat (~2.6–3.0µs/op from 1 to 8 parallel ca
 
 ## The promises
 
-As of today, v0 unreleased:
+As of v0:
 
 - **We never wrap or rename what `net/http` defines.** Handlers, `ResponseWriter`, request types, mux patterns — the stdlib shapes are the API, always.
 - **Safe by default.** Every timeout on from the zero config; body reads capped; "no timeout" is not a thing you can configure.

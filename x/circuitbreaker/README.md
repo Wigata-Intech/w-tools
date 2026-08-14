@@ -2,9 +2,15 @@
 
 > When an upstream gets sick, stop calling it — fail in nanoseconds instead of burning timeouts.
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/x/circuitbreaker.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/x/circuitbreaker)
+
 **Status: experimental, under `x/`.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Nothing at the w-tools root depends on it — never build anything load-bearing on an `x/` package. Graduation to the root, under a new import path, is the only way it earns stability.
 
 ## TL;DR
+
+```bash
+go get github.com/Wigata-Intech/w-tools/x/circuitbreaker
+```
 
 - Classic three-state breaker: closed → open (fail fast) → half-open (probe) → closed
 - Trips on failure ratio over a sliding window, with a minimum sample size so cold starts can't trip on one bad call

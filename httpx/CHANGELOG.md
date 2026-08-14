@@ -4,11 +4,13 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Changed
+
+- README: pkg.go.dev reference badge under the pitch, the `go get` install command opening How-it-solves-it, and the promises header no longer claims v0 is unreleased
+
 ### Added
 
 - README recipe: `net/http/pprof` on a second, internal-only httpx server — mount pattern, the WriteTimeout-vs-profile-stream gotcha, and the never-expose-publicly warning
-
-
 
 ## [0.1.0] - 2026-08-12
 
