@@ -65,6 +65,25 @@ s.Use(
 
 Your own middleware plugs into the same slots — the chain type is the ecosystem's `func(http.Handler) http.Handler`, so anything written for that convention drops in unchanged.
 
+### Recipe: pprof on an internal debug server
+
+`net/http/pprof` mounts on httpx as-is — no adapter, no import side effects. Run it as a **second, internal-only server** in the same process: your public server keeps its strict timeouts and middleware chain, while the debug listener stays unreachable from outside and tolerant of long profile streams (a `WriteTimeout` shorter than `?seconds=30` would cut a CPU profile mid-capture):
+
+```go
+debug := httpx.New(httpx.Config{
+    Addr:         "127.0.0.1:6060",  // never behind the public proxy
+    WriteTimeout: 2 * time.Minute,   // must outlast ?seconds=N profile streams
+})
+debug.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index)) // also serves heap, goroutine, allocs, mutex, block
+debug.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+debug.HandleFunc("/debug/pprof/profile", pprof.Profile)
+debug.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+debug.HandleFunc("/debug/pprof/trace", pprof.Trace)
+go func() { _ = debug.Run(ctx) }() // same ctx: drains with the main server
+```
+
+Never expose pprof publicly — heap dumps can contain secrets held in memory, and CPU profiling is a free denial-of-service lever.
+
 ## Why it matters
 
 Because there's no lock-in in either direction: anything written for `net/http` drops into httpx unchanged, and anything written for httpx runs under bare `net/http` — ejecting costs you a router file, not a rewrite. Because the defaults are the safe ones: the dangerous zero values (`no timeout`, unbounded bodies) are not expressible. And because it speaks current standards from day one — RFC 10008 `QUERY` routed, bound, and validated per the spec's server rules (a QUERY without a `Content-Type` is rejected, as the RFC requires); RFC 9457 for every error body.

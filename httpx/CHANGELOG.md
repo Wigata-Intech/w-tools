@@ -4,6 +4,10 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- README recipe: `net/http/pprof` on a second, internal-only httpx server — mount pattern, the WriteTimeout-vs-profile-stream gotcha, and the never-expose-publicly warning
+
 
 
 ## [0.1.0] - 2026-08-12
