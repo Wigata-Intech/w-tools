@@ -166,7 +166,7 @@ func TestCommandOutput(t *testing.T) {
 		"300_c.up.sql":   "CREATE TABLE c1 (x INTEGER);",
 	}
 
-	t.Run("status renders applied, pending, and out-of-order rows", func(t *testing.T) {
+	t.Run("status renders applied, pending, out-of-order, and orphaned rows", func(t *testing.T) {
 		outFile := filepath.Join(t.TempDir(), "stdout")
 		f, err := os.Create(outFile) // #nosec G304 -- path inside t.TempDir
 		if err != nil {
@@ -181,6 +181,7 @@ func TestCommandOutput(t *testing.T) {
 		root, state := cmdRoot(t, withB)
 		sum := sha256.Sum256([]byte(withB["300_c.up.sql"]))
 		state.setApplied(300, "c", hex.EncodeToString(sum[:]), "2026-08-14T00:00:00Z")
+		state.setApplied(999, "ghost", "cafe", "2026-08-14T00:00:00Z")
 		if code := cmdExec(t, root, []string{"migrate", "status"}); code != 0 {
 			t.Fatal("status failed")
 		}
@@ -188,7 +189,8 @@ func TestCommandOutput(t *testing.T) {
 		out := string(got)
 		if !strings.Contains(out, "✓ 300_c 2026-08-14 00:00:00") ||
 			!strings.Contains(out, "  100_a out of order") ||
-			!strings.Contains(out, "  200_b out of order") {
+			!strings.Contains(out, "  200_b out of order") ||
+			!strings.Contains(out, "✓ 999_ghost orphaned: file missing") {
 			t.Errorf("status output = %q", out)
 		}
 	})
