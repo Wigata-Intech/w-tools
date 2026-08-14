@@ -7,6 +7,7 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 ### Added
 
 - `migrationx`: `UpTo`/`DownTo` log a warning when the given version matches no migration on the filesystem, instead of silently applying against the nearest bound
+- `migrationx`: dirty-state tracking for no-transaction migrations on mysql — the history table's `dirty` column marks a version before its statements run and clears it on success, `Up`/`Down` refuse to rerun while any version is dirty, `Status` reports it inline via `Migration.Dirty` instead of failing, and `New` heals a history table created before this column existed by adding it automatically
 
 ### Changed
 

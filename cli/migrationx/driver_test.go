@@ -18,19 +18,20 @@ import (
 // scripted failures, and a lock flag. It backs a database/sql driver so
 // the engine runs its real SQL paths with no real database.
 type fakeState struct {
-	mu          sync.Mutex
-	history     map[int64][4]string // version -> name, checksum, applied_at
-	executed    []string            // every statement, in order
-	failOn      map[string]error    // substring of statement -> injected error
-	lockBusy    bool                // GET_LOCK returns 0
-	beginErr    error               // injected from BeginTx
-	rowsErr     error               // returned by history rows after the last row
-	badRow      bool                // history rows yield a wrongly typed version
-	journal     map[int64][4]string // pending inserts inside an open tx
-	deletes     map[int64]bool      // pending deletes inside an open tx
-	inTx        bool
-	dirty       map[int64]bool // version -> dirty flag (mysql only in practice)
-	badDirtyRow bool           // dirty-version rows yield a wrongly typed version
+	mu            sync.Mutex
+	history       map[int64][4]string // version -> name, checksum, applied_at
+	executed      []string            // every statement, in order
+	failOn        map[string]error    // substring of statement -> injected error
+	lockBusy      bool                // GET_LOCK returns 0
+	beginErr      error               // injected from BeginTx
+	rowsErr       error               // returned by history rows after the last row
+	badRow        bool                // history rows yield a wrongly typed version
+	journal       map[int64][4]string // pending inserts inside an open tx
+	deletes       map[int64]bool      // pending deletes inside an open tx
+	inTx          bool
+	dirty         map[int64]bool // version -> dirty flag (mysql only in practice)
+	badDirtyRow   bool           // dirty-version rows yield a wrongly typed version
+	noDirtyColumn bool           // simulates a history table predating the dirty column, healed by New's ALTER TABLE
 
 	// serialize makes the fake locks real: BEGIN/GET_LOCK block on
 	// writerMu until COMMIT/ROLLBACK/RELEASE_LOCK. Set before any
@@ -211,6 +212,8 @@ func (c *fakeConn) ExecContext(ctx context.Context, query string, args []driver.
 		value, _ := args[0].Value.(int64)
 		version, _ := args[1].Value.(int64)
 		s.dirty[version] = value != 0
+	case strings.HasPrefix(query, "ALTER TABLE") && strings.Contains(query, "ADD COLUMN dirty"):
+		s.noDirtyColumn = false
 	case strings.HasPrefix(query, "DELETE FROM"):
 		version, _ := args[0].Value.(int64)
 		if s.inTx {
@@ -237,6 +240,14 @@ func (c *fakeConn) QueryContext(ctx context.Context, query string, args []driver
 		if strings.Contains(query, sub) {
 			return nil, err
 		}
+	}
+
+	if strings.Contains(query, "information_schema.columns") {
+		rows := &fakeRows{cols: []string{"one"}}
+		if !s.noDirtyColumn {
+			rows.rows = [][]driver.Value{{int64(1)}}
+		}
+		return rows, nil
 	}
 
 	if strings.HasPrefix(query, "SELECT 1 FROM") {
