@@ -4,11 +4,11 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-`w-tools` is [Wigata InTech](https://wigataintech.com)'s open-source Go toolbox: focused packages we run in our own production services first, and publish because they're useful beyond us. One discipline holds everything together — **standard library first, zero dependencies, CGO-free**. If a package here can't justify itself without pulling in half the ecosystem, it doesn't ship.
+`w-tools` is [Wigata InTech](https://wigataintech.com)'s open-source Go toolbox: focused packages we run in our own production services first, and publish because they're useful beyond us. One discipline holds everything together — **standard library first, zero third-party dependencies, CGO-free**. The single carve-out: an `x/` package implementing a protocol the standard library doesn't cover may use an allowlisted, Go-team-maintained `golang.org/x` module (today: `x/crypto` for SSH) — never anything beyond that. If a package here can't justify itself without pulling in half the ecosystem, it doesn't ship.
 
 ## TL;DR
 
-- **Multi-module monorepo** — every package has its own `go.mod`, its own tags, its own dependency graph (which is empty, and stays that way)
+- **Multi-module monorepo** — every package has its own `go.mod`, its own tags, its own dependency graph (empty for every root package, and staying that way)
 - **Stable at the root, experimental under `x/`** — the `golang.org/x` convention: root packages hold their APIs; `x/` packages may break, stall, or be **dropped from the repo entirely**, without a deprecation cycle
 - **Production-proven or it doesn't ship** — nothing lands here that Wigata InTech doesn't run itself
 - **v0 until earned** — a package reaches `v1.0.0` only after surviving real production use
@@ -17,10 +17,11 @@
 
 | Package | What it does | Status | Docs |
 | ------- | ------------ | ------ | ---- |
-| [`cli`](cli/) | Command framework: command tree, flag > env > config > default precedence, struct binding, generated help; SQL migrations via `cli/migrationx` planned before the first tag | 🚧 unreleased | — |
+| [`cli`](cli/) | Command framework: command tree, flag > env > config > default precedence, struct binding, generated help; SQL migrations via `cli/migrationx`: checksummed, locked, transactional | 🚧 unreleased | — |
 | [`httpx`](httpx/) | `net/http` wrapper: server with production timeouts, route groups, all methods incl. RFC 10008 `QUERY`, RFC 9457 errors, middleware, outbound client | v0.1.0 | [![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/httpx.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/httpx) |
 | [`logger`](logger/) | `log/slog` wrapper: JSON-first, service metadata on every line, compliance-grade key redaction and masking | v0.1.1 | [![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/logger.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/logger) |
 | [`x/circuitbreaker`](x/circuitbreaker/) | Three-state circuit breaker: sliding-window trip, half-open probes, native `net/http` and `httpx/client` integration | **experimental** v0.1.0 | [![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/x/circuitbreaker.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/x/circuitbreaker) |
+| [`x/sshx`](x/sshx/) | Persistent SSH connection management: self-healing per-host connections, jittered backoff, capped dial concurrency, fail-closed host keys, stream-based sessions, key handling | **experimental** 🚧 unreleased | — |
 
 Treat anything under `x/` as a sharp tool with no handle: an `x/` package is an experiment, not a promise — it can fail its experiment and be deleted outright, so never build anything load-bearing on one. Graduation to the root, under a new import path, is the only way an `x/` package earns stability.
 
@@ -36,7 +37,7 @@ go get github.com/Wigata-Intech/w-tools/httpx@latest
 go get github.com/Wigata-Intech/w-tools/x/circuitbreaker@latest   # experimental — see the x/ contract above
 ```
 
-Importing any of them brings in that module and nothing else. No transitive surprises, ever — check any `go.mod` here and enjoy the silence.
+Importing any of them brings in that module and nothing else beyond its own stated `go.mod` — no transitive surprises; for every root package that `go.mod` is empty.
 
 ## Versioning
 

@@ -90,6 +90,8 @@ Every module's `README.md` follows the same human-first shape — a reader shoul
 
 No per-package license section — the repository [LICENSE](LICENSE) covers every module, and pkg.go.dev detects and displays it on its own.
 
+Substantial subpackages (middleware, client, migrationx) use the shorter sub-template — `# <name>` → `## TL;DR` → `## How to use with <module>` → `## How to use standalone` — while the module README summarizes them in `### Using <subpackage>` subsections.
+
 ## Commits and the DCO
 
 Every commit must be signed off:

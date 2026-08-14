@@ -1,32 +1,25 @@
-// Package migrate constructs the migration command tree; main registers
-// it. The subcommands are placeholders until cli/migrationx lands — the
-// shape (a nested tree built in its own package) is what this shows.
+// Package migrate wires cli/migrationx into the service: one call
+// composes the whole migrate create|up|down|status tree.
 package migrate
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/Wigata-Intech/w-tools/cli"
+	"github.com/Wigata-Intech/w-tools/cli/migrationx"
 )
 
-// Command builds the migrate subcommand tree: a nil-Run parent that only
-// dispatches, with one child per verb.
-func Command() *cli.Command {
-	return &cli.Command{
-		Name:  "migrate",
-		Short: "manage database migrations",
-		Commands: []*cli.Command{
-			{Name: "up", Short: "apply pending migrations", Run: placeholder("up")},
-			{Name: "down", Short: "roll back one migration", Run: placeholder("down")},
-			{Name: "status", Short: "show applied and pending migrations", Run: placeholder("status")},
-		},
-	}
-}
+var errNoDriver = errors.New(
+	"this dependency-free example stops at the database seam: in a real service, " +
+		"import your sql driver, open *sql.DB from your configuration, and return " +
+		"migrationx.New(db, migrationsFS, migrationx.Config{...}) here — " +
+		"`migrate create` works without a database")
 
-func placeholder(verb string) func(context.Context, []string) error {
-	return func(_ context.Context, _ []string) error {
-		fmt.Printf("migrate %s: cli/migrationx is in development — this command wires to its engine when it lands\n", verb)
-		return nil
-	}
+// Command builds the migrate tree. The open callback runs after flags
+// resolve; it owns the DSN, the driver, and the embedded migrations.
+func Command() *cli.Command {
+	return migrationx.Command(func(_ context.Context, _ bool) (*migrationx.Migrator, error) {
+		return nil, errNoDriver
+	})
 }

@@ -1,6 +1,6 @@
 # cli
 
-> A command tree, flags that read the environment, and generated help — the cobra+viper subset a container-deployed service actually uses, on the standard library alone.
+> A command tree, flags that read the environment, and generated help — everything a container-deployed service needs from its entrypoint, on the standard library alone.
 
 **Status:** 🚧 unreleased, pre-`v0.1.0`. The API may still move; `cli/migrationx` (SQL migrations) lands in this module before the first tag. Nothing here is stable until `cli/v0.1.0` exists.
 
@@ -68,6 +68,16 @@ var cfg Config
 Every layer resolves into `cfg` before `Run` executes. A `required` field no layer supplied stops the process at startup — exit 2, naming the flag and its env var — never mid-request. `cli.LoadDotEnv(".env")` before `Execute` feeds a dotenv file into the environment layer (real environment wins), for bare-machine runs without an orchestrator.
 
 Secrets travel by env or `*_FILE`, never by flag (argv is world-readable via `ps`). Mark one with `fs.Secret("db-password")` and its default renders as `<secret>` in help while parse errors carry the flag name only — a credential never reaches stderr or CI logs.
+
+### Using migrationx
+
+The schema half of the module: timestamped SQL migration pairs, a checksummed history table, database-side locking, refuse-by-default late-merge handling. One append wires the whole `migrate create|up|down|status` tree into your root:
+
+```go
+root.Commands = append(root.Commands, migrationx.Command(openMigrator))
+```
+
+The file format, annotations, standalone use, and operational rules: [migrationx/README.md](migrationx/).
 
 ## Why it matters
 

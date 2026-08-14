@@ -6,6 +6,8 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 
 ### Added
 
+- `migrationx` subpackage: SQL migration engine — timestamped up/down files, sha256-verified history table, per-migration transactions with a no-transaction annotation, statement scanner (quotes, comments, regions, mysql backslash and # comments), out-of-order refusal with explicit override, database-side migration locks, concurrent-runner skip protection, cancellation-safe cleanup, audited rollbacks, `Create` scaffolding
+
 - Command tree: `Command` with subcommands, context-first `Run`, dispatch from `os.Args`, exit codes 0/1/2
 - Generated help (`-h`/`--help`, `help [command]`) and root-only `version`/`--version`
 - `FlagSet` mirroring the stdlib `flag` constructors, with flag inheritance down the tree

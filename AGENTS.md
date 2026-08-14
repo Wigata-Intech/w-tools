@@ -36,7 +36,9 @@ w-tools/
 - **Godoc:** every exported identifier gets a comment starting with its name. Package docs live in `doc.go`. Deprecations use `// Deprecated: ...`.
 - **Comments say what, not why:** a comment states a constraint, contract, or invariant the code cannot express — never design rationale or a narration of the change that added it. Rationale belongs in the PR/report, not the source.
 - **READMEs follow the template in [CONTRIBUTING.md](CONTRIBUTING.md) from the first commit** — the 5W+1H sections (`TL;DR → problem → how → why → cost → promises`), no per-package license section, unreleased status stated in the Status line. Placeholder or "starter" READMEs are never acceptable.
+- **README hierarchy:** the root README references modules; a module's README carries the high- and mid-level story, with a `### Using <subpackage>` subsection under "How it solves it" for each substantial subpackage (short, usage-focused, linking down). Substantial subpackages carry their own README on the sub-template: `# <name>` → `## TL;DR` (go get first) → `## How to use with <module>` → `## How to use standalone`.
 - **Examples are generic.** Code, comments, and docs use neutral names (`my-service`, `app`) — never internal product names.
+- **Packages are described on their own terms.** Never frame a package as a copy of another project — no "X-style", "X-like", or "the X subset" in pitches, godoc, or roadmap rows. Named comparisons live only in explicit alternatives discussions ("why not X") and measured tables.
 - **Runnable demonstrations live in the `examples/` module.** In-code `Example` functions are added only when their output is assertable — the `testableexamples` linter rejects output-less ones.
 - **Never cite a version, tag, count, or filename without verifying it exists** — check against `git tag` and the tree, not memory.
 
