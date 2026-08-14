@@ -17,7 +17,7 @@
 
 | Package | What it does | Status | Docs |
 | ------- | ------------ | ------ | ---- |
-| [`cli`](cli/) | Command framework: command tree, flag > env > config > default precedence, struct binding, generated help; SQL migrations via `cli/migrationx`: checksummed, locked, transactional | 🚧 unreleased | — |
+| [`cli`](cli/) | Command framework: command tree, flag > env > config > default precedence, struct binding, generated help; SQL migrations via `cli/migrationx`: checksummed, locked, transactional | v0.1.0 | [![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/cli.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/cli) |
 | [`httpx`](httpx/) | `net/http` wrapper: server with production timeouts, route groups, all methods incl. RFC 10008 `QUERY`, RFC 9457 errors, middleware, outbound client | v0.1.0 | [![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/httpx.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/httpx) |
 | [`logger`](logger/) | `log/slog` wrapper: JSON-first, service metadata on every line, compliance-grade key redaction and masking | v0.1.1 | [![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/logger.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/logger) |
 | [`x/circuitbreaker`](x/circuitbreaker/) | Three-state circuit breaker: sliding-window trip, half-open probes, native `net/http` and `httpx/client` integration | **experimental** v0.1.0 | [![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/x/circuitbreaker.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/x/circuitbreaker) |
@@ -32,6 +32,7 @@ What's shipped and what's coming: [ROADMAP.md](ROADMAP.md), plus a `CHANGELOG.md
 Each package is its own module — pull only what you need:
 
 ```bash
+go get github.com/Wigata-Intech/w-tools/cli@latest
 go get github.com/Wigata-Intech/w-tools/logger@latest
 go get github.com/Wigata-Intech/w-tools/httpx@latest
 go get github.com/Wigata-Intech/w-tools/x/circuitbreaker@latest   # experimental — see the x/ contract above

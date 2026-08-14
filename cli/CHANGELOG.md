@@ -4,6 +4,8 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-14
+
 ### Added
 
 - `migrationx` subpackage: SQL migration engine — timestamped up/down files, sha256-verified history table, per-migration transactions with a no-transaction annotation, statement scanner (quotes, comments, regions, mysql backslash and # comments), out-of-order refusal with explicit override, database-side migration locks, concurrent-runner skip protection, cancellation-safe cleanup, audited rollbacks, `Create` scaffolding
@@ -19,4 +21,4 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 - `LoadDotEnv`: minimal dotenv loader into the process environment, real environment winning
 - Config file keys are validated loosely: keys no visible flag declares are ignored (one file serves every subcommand); setting the config-path flag from the file remains an error
 - Examples module: `demo` (every feature on one screen) and `service` (register-based layout — rest, cron, consumer, migrate constructed in their own packages), with `.env.example` and `config.json` samples
-- Benchmark suite pricing the boot cost; measured binary-size comparison vs cobra+viper in the README
+- Benchmark suite pricing the boot cost; measured binary-size comparison vs cobra+viper in the README — benchmark and fuzz sections carry device specs, exact commands, and raw output logs

@@ -4,9 +4,14 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-14
+
 ### Changed
 
-- README: pkg.go.dev reference badge under the pitch, the `go get` install command opening How-it-solves-it, and the promises header no longer claims v0 is unreleased
+- README: benchmark and fuzz sections carry device specs, exact commands, and raw output logs above the summary tables
+
+- README: pkg.go.dev reference badge under the pitch, the `go get` install command opening the TL;DR, and the promises header no longer claims v0 is unreleased
+- middleware/ and client/ deep-dive READMEs on the sub-package template, summarized from the httpx README's "Using" subsections
 
 ### Added
 

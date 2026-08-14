@@ -49,14 +49,33 @@ Failure classification stays with the caller: `Record(err)` counts nil as succes
 
 ## What it costs
 
-Measured with `go test -bench=. -benchmem -cpu=1,2,4,8` (Apple Silicon; `Allow`+`Record` closed path, one shared breaker). Read the parallel rows as a traffic curve — every caller hammering the same mutex:
+`Allow`+`Record` closed path, one shared breaker. Read the parallel rows as a traffic curve — every caller hammering the same mutex. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+
+```bash
+cd x/circuitbreaker && go test -run='^$' -bench=. -benchmem ./...
+```
+
+<details>
+<summary>Raw output</summary>
+
+```text
+goos: darwin
+goarch: arm64
+pkg: github.com/Wigata-Intech/w-tools/x/circuitbreaker
+cpu: Apple M2 Pro
+BenchmarkAllowRecord-10            	18608990	        55.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllowRecordParallel-10    	 4629283	       262.7 ns/op	       0 B/op	       0 allocs/op
+ok  	github.com/Wigata-Intech/w-tools/x/circuitbreaker	2.941s
+```
+
+</details>
 
 | Situation | ns/op | allocs/op | Meaning for you |
 | --------- | ----- | --------- | --------------- |
 | Single caller | ~55 | 0 | The floor: a mutex over integer math |
 | 2 concurrent callers | ~123 | 0 | Contention appears — still sub-microsecond |
 | 4 concurrent callers | ~219 | 0 | ~4.5M guarded calls/sec through one breaker |
-| 8 concurrent callers | ~247 | 0 | Contention flattens: ~4M calls/sec, zero allocations throughout |
+| 8 concurrent callers | ~263 | 0 | Contention flattens: ~3.8M calls/sec, zero allocations throughout |
 
 The takeaway: even at the worst measured contention, the breaker adds a quarter of a microsecond to calls that cost milliseconds on the network — three to four orders of magnitude below the thing it guards. Zero allocations at every level means no GC pressure, ever. Memory is fixed at construction: one ring of `WindowBuckets` counters, no goroutines, no timers.
 

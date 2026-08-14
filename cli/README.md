@@ -2,7 +2,9 @@
 
 > A command tree, flags that read the environment, and generated help — everything a container-deployed service needs from its entrypoint, on the standard library alone.
 
-**Status:** 🚧 unreleased, pre-`v0.1.0`. The API may still move; `cli/migrationx` (SQL migrations) lands in this module before the first tag. Nothing here is stable until `cli/v0.1.0` exists.
+[![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/cli.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/cli)
+
+**Status: v0, released.** Production-track at Wigata InTech, `cli/migrationx` included. Semver v0 applies: the API can still move between minor versions until `v1.0.0`, which lands only after surviving production use.
 
 ## TL;DR
 
@@ -88,12 +90,39 @@ The file format, annotations, standalone use, and operational rules: [migrationx
 
 ## What it costs
 
-Everything happens once at process start — there is no hot path. Measured on Apple M2 Pro, Go stable:
+Everything happens once at process start — there is no hot path. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+
+```bash
+cd cli && go test -run='^$' -bench=. -benchmem ./...
+```
+
+<details>
+<summary>Raw output</summary>
+
+```text
+goos: darwin
+goarch: arm64
+pkg: github.com/Wigata-Intech/w-tools/cli
+cpu: Apple M2 Pro
+BenchmarkExecute-10                	  408525	      3522 ns/op	    4488 B/op	      69 allocs/op
+BenchmarkExecuteEnvAndConfig-10    	   62565	     20526 ns/op	    7320 B/op	      95 allocs/op
+ok  	github.com/Wigata-Intech/w-tools/cli	4.122s
+goos: darwin
+goarch: arm64
+pkg: github.com/Wigata-Intech/w-tools/cli/migrationx
+cpu: Apple M2 Pro
+BenchmarkParseScript-10    	   25544	     44449 ns/op	   42320 B/op	     509 allocs/op
+BenchmarkLoad-10           	    5846	    188436 ns/op	  130206 B/op	    3443 allocs/op
+BenchmarkUpTen-10          	   23616	     48176 ns/op	   38018 B/op	     557 allocs/op
+ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	5.953s
+```
+
+</details>
 
 | Measure | Result |
 | ------- | ------ |
-| Full dispatch (subcommand + flag), `BenchmarkExecute` | ~2.4 µs, 61 allocs — once per process |
-| Every layer active (env + config file read/decoded), `BenchmarkExecuteEnvAndConfig` | ~17 µs, 87 allocs — once per process |
+| Full dispatch (subcommand + flag), `BenchmarkExecute` | ~3.5 µs, 69 allocs — once per process |
+| Every layer active (env + config file read/decoded), `BenchmarkExecuteEnvAndConfig` | ~21 µs, 95 allocs — once per process |
 | Binary size: hello-world `main` | 1.6 MB (`-trimpath -ldflags "-s -w"`) |
 | the same `main` on **cli** | 2.1 MB — **+0.5 MB** |
 | the same `main` on cobra + viper | 4.7 MB — **+3.1 MB**, 6× the cli delta |
@@ -104,9 +133,22 @@ Structural notes, honest ones:
 - JSON is the only built-in config format; YAML/TOML mean waiting for (or writing) a `Decoder`
 - No shell completion, no live config reload, no remote config — deliberate omissions, documented in the design, revisited only on evidence
 
+Fuzzing runs three contract targets — argv dispatch with the secret-leak invariant, the env-name binding proof, and the config decoder against a stdlib differential oracle:
+
+<details>
+<summary>Fuzzing — commands and raw output</summary>
+
+```text
+$ go test -run='^$' -fuzz=FuzzExecute -fuzztime=10s .
+$ go test -run='^$' -fuzz=FuzzEnvName -fuzztime=10s .
+$ go test -run='^$' -fuzz=FuzzDecodeJSON -fuzztime=10s .
+```
+
+</details>
+
 ## The promises
 
-As of unreleased main, holding from the first tag onward:
+As of `v0.1.0`:
 
 - The precedence order — flag > env > `*_FILE` > config file > default — is contract, not implementation detail
 - A `Secret`-marked flag's value never appears in help or error output

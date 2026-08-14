@@ -2,7 +2,7 @@
 
 > Your schema's history as ordered SQL files — applied in transactions, verified by checksum, locked against concurrent deploys.
 
-**Status:** 🚧 unreleased, ships inside the `cli` module (`cli/vX.Y.Z`). Database drivers never appear here — the engine runs on your `*sql.DB` (sqlite and mysql dialects).
+**Status: v0, released** — ships inside the `cli` module (tagged `cli/vX.Y.Z`). Database drivers never appear here — the engine runs on your `*sql.DB` (sqlite and mysql dialects).
 
 ## TL;DR
 
@@ -61,5 +61,48 @@ if err := m.Up(ctx); err != nil {
 ```
 
 `Up`, `UpByOne`, `UpTo`, `Down`, `DownTo`, `Status`, `Version` — every mutating call verifies first (checksums, orphans, ordering) and each migration runs in its own transaction with the history write, commit or rollback as one unit. On mysql, DDL auto-commits mid-migration — single-DDL-statement migrations are the recommended practice there, and `Status` makes any partial state visible.
+
+## What it costs
+
+Fake-driver numbers — the engine's own work with the database costing nothing. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+
+```bash
+cd cli/migrationx && go test -run='^$' -bench=. -benchmem .
+```
+
+<details>
+<summary>Raw output</summary>
+
+```text
+goos: darwin
+goarch: arm64
+pkg: github.com/Wigata-Intech/w-tools/cli/migrationx
+cpu: Apple M2 Pro
+BenchmarkParseScript-10    	   29318	     39679 ns/op	   42320 B/op	     509 allocs/op
+BenchmarkLoad-10           	    6358	    185756 ns/op	  130201 B/op	    3443 allocs/op
+BenchmarkUpTen-10          	   25497	     47126 ns/op	   38358 B/op	     557 allocs/op
+ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	4.721s
+```
+
+</details>
+
+| Measure | Result |
+| ------- | ------ |
+| Scanning a 100-statement file (`BenchmarkParseScript`) | ~40 µs |
+| Loading + checksumming 100 migration pairs (`BenchmarkLoad`) | ~186 µs |
+| Applying ten migrations — transactions, probes, history (`BenchmarkUpTen`) | ~47 µs of engine overhead |
+
+Migrations run once per deploy; real cost is your SQL, not the engine. Fuzzing covers the two own-parsers — the statement scanner (mirror-oracle invariants) and the filename parser (round-trip invariants):
+
+<details>
+<summary>Fuzzing — commands and raw output</summary>
+
+```text
+$ go test -run='^$' -fuzz=FuzzParseScript -fuzztime=10s .
+$ go test -run='^$' -fuzz=FuzzParseFilename -fuzztime=10s .
+```
+
+</details>
+
 
 The full story — module overview, precedence, entrypoints: the [cli README](../README.md).

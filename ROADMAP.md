@@ -45,10 +45,10 @@ Each starts with its own RFC or design doc; 💡 means candidate, not commitment
 
 | Status | Item |
 | ------ | ---- |
-| 🚧 | `cli` — stdlib-only command/flag/env framework for service entrypoints; implementation landed, unreleased until `cli/migrationx` completes the module |
+| ✅ | `cli` — stdlib-only command/flag/env framework for service entrypoints; shipped as `cli/v0.1.0` with `migrationx` included |
 | 💡 | `cli` live config reload — *proposed, not approved*: would supersede the design's deliberate omissions; shape if accepted is SIGHUP-triggered re-resolution with an `OnReload` callback, never file watching |
 | 💡 | Go 1.27 compatibility pass — verify the gate under 1.27 (json/v2 becomes `encoding/json`'s engine); floor bumps stay demand-driven, since a floor excludes every consumer below it |
-| 🚧 | `cli/migrationx` — SQL migrations on `database/sql` + `embed`: timestamp-versioned files with checksums and a migration lock; drivers stay consumer-side; design approved, build is next |
+| ✅ | `cli/migrationx` — SQL migrations on `database/sql` + `embed`: timestamp-versioned files with checksums and a migration lock; drivers stay consumer-side; shipped in `cli/v0.1.0` — engine, scanner, locks, migrate command |
 | 💡 | `dbx` — `database/sql` ergonomics (tx helpers, timeouts, scanning); never imports a driver, tested against sqlite/mysql via the examples module |
 | 💡 | `x/token` — JWT on stdlib crypto only; security-sensitive, so `x/` and heavy hardening if attempted |
 | 💡 | `hasher` (argon2) — **blocked on policy**: argon2 needs `golang.org/x/crypto`, which the zero-dependency law forbids; either stays in project repos or w-tools RFCs a curated `golang.org/x`-only exception |

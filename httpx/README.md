@@ -109,20 +109,63 @@ Because there's no lock-in in either direction: anything written for `net/http` 
 
 ## What it costs
 
-Measured with `go test -bench=. -benchmem` (Apple Silicon, output discarded). Read it as a price list:
+Read it as a price list. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+
+```bash
+cd httpx && go test -run='^$' -bench=. -benchmem ./...
+```
+
+<details>
+<summary>Raw output</summary>
+
+```text
+goos: darwin
+goarch: arm64
+pkg: github.com/Wigata-Intech/w-tools/httpx
+cpu: Apple M2 Pro
+BenchmarkServeMuxBaseline-10    	11014020	       108.7 ns/op	      18 B/op	       2 allocs/op
+BenchmarkGroupRoute-10          	10988310	       113.5 ns/op	      18 B/op	       2 allocs/op
+ok  	github.com/Wigata-Intech/w-tools/httpx	3.080s
+ok  	github.com/Wigata-Intech/w-tools/httpx/client	0.422s
+goos: darwin
+goarch: arm64
+pkg: github.com/Wigata-Intech/w-tools/httpx/middleware
+cpu: Apple M2 Pro
+BenchmarkBareHandler-10               	 6723567	       173.8 ns/op	     512 B/op	       3 allocs/op
+BenchmarkLogger-10                    	 1000000	      1164 ns/op	     673 B/op	       8 allocs/op
+BenchmarkLoggerCapture-10             	  442272	      2873 ns/op	    2293 B/op	      40 allocs/op
+BenchmarkCanonicalChain-10            	  400852	      3054 ns/op	    1907 B/op	      32 allocs/op
+BenchmarkCanonicalChainParallel-10    	  429691	      2825 ns/op	    1911 B/op	      32 allocs/op
+BenchmarkRateLimitParallel-10         	 3063607	       375.0 ns/op	     512 B/op	       3 allocs/op
+ok  	github.com/Wigata-Intech/w-tools/httpx/middleware	8.270s
+```
+
+</details>
 
 | Situation | ns/op | allocs/op | Meaning for you |
 | --------- | ----- | --------- | --------------- |
 | Raw `ServeMux` routing | ~109 | 2 | The stdlib baseline |
 | The same route through nested groups | ~114 | 2 | **Grouping is free** — parity within noise, identical allocations, because groups are registration-time sugar |
-| Request floor (build + bare handler) | ~139 | 3 | What the middleware numbers subtract |
-| `Logger` middleware, capture off | ~1,112 | 8 | ~1µs per request — almost all of it the JSON access line itself |
-| `Logger` with request-body capture | ~2,545 | 40 | The opt-in costs ~1.4µs more: capture, parse, structured attr |
-| Full canonical chain (RealIP → RequestID → Trace → Logger → Recover) | ~2,567 | 32 | Your whole production identity stack: under 2.5µs of overhead per request |
+| Request floor (build + bare handler) | ~174 | 3 | What the middleware numbers subtract |
+| `Logger` middleware, capture off | ~1,164 | 8 | ~1µs per request — almost all of it the JSON access line itself |
+| `Logger` with request-body capture | ~2,873 | 40 | The opt-in costs ~1.7µs more: capture, parse, structured attr |
+| Full canonical chain (RealIP → RequestID → Trace → Logger → Recover) | ~3,054 | 32 | Your whole production identity stack: ~3µs of overhead per request |
 
 The practical takeaway: the expensive thing in the stack is writing a log line, not the middleware machinery around it — and even the everything-on chain costs less than 0.3% of a 1ms handler.
 
-Under concurrency the chain holds flat (~2.6–3.0µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~364 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
+Under concurrency the chain holds flat (~2.8–3.1µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~364 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
+
+The two wire-input parsers (RealIP's forwarding headers, the W3C traceparent) are fuzzed:
+
+<details>
+<summary>Fuzzing — commands and raw output</summary>
+
+```text
+$ go test -run='^$' -fuzz=FuzzRealIP -fuzztime=10s .
+$ go test -run='^$' -fuzz=FuzzTraceparent -fuzztime=10s .
+```
+
+</details>
 
 ## The promises
 

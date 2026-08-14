@@ -61,19 +61,53 @@ Runnable programs live in [`examples/`](examples/): [`payment`](examples/payment
 
 Compliance standards treat log output as data storage: PCI DSS caps card-number display at first 6 + last 4 — `Mask{ShowFirst: 6, ShowLast: 4}` is that rule verbatim, and it's the example above — while GDPR's data-minimization and OWASP's logging guidance both point to the same conclusion: the only reliable place to enforce "never log secrets" is inside the pipeline, not at every call site. That's the difference between a convention your team remembers and a guarantee your config enforces.
 
-And the guarantee is fuzz-tested, not asserted: 10M+ generated inputs — broken UTF-8, CJK, extreme masking bounds, JSON metacharacters — produced zero panics and zero records where a redacted value survived.
+And the guarantee is fuzz-tested, not asserted: 10M+ generated inputs across development — broken UTF-8, CJK, extreme masking bounds, JSON metacharacters — produced zero panics and zero records where a redacted value survived.
+
+<details>
+<summary>Fuzzing — commands and raw output (10s smoke; release runs are longer)</summary>
+
+```text
+$ go test -run='^$' -fuzz=FuzzMaskString -fuzztime=10s .
+$ go test -run='^$' -fuzz=FuzzRedact -fuzztime=10s .
+```
+
+</details>
 
 ## What it costs
 
-Measured with `make bench` (Apple Silicon, 6-attr record, output discarded). Read it as a price list — each row is a situation you might be in:
+Read it as a price list — each row is a situation you might be in (6-attr record, output discarded). Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+
+```bash
+cd logger && go test -run='^$' -bench=. -benchmem ./...
+```
+
+<details>
+<summary>Raw output</summary>
+
+```text
+goos: darwin
+goarch: arm64
+pkg: github.com/Wigata-Intech/w-tools/logger
+cpu: Apple M2 Pro
+BenchmarkRawSlog-10                 	 1817307	       683.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPassThrough-10             	 1679659	       703.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRulesNoMatch-10            	 1408112	       846.2 ns/op	     208 B/op	       1 allocs/op
+BenchmarkRedactTopLevel-10          	 1280845	       943.2 ns/op	     192 B/op	       4 allocs/op
+BenchmarkRedactStruct-10            	  613880	      1934 ns/op	    1298 B/op	      26 allocs/op
+BenchmarkPassThroughParallel-10     	 4392198	       268.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRedactStructParallel-10    	 1235324	      1472 ns/op	    1382 B/op	      27 allocs/op
+ok  	github.com/Wigata-Intech/w-tools/logger	13.925s
+```
+
+</details>
 
 | Situation | ns/op | allocs/op | Meaning for you |
 | --------- | ----- | --------- | --------------- |
 | Raw `log/slog`, no wrapper | ~690 | 0 | The baseline |
 | `logger`, no redaction rules | ~700 | 0 | **The wrapper is free** — parity within run-to-run variance (±5%), zero allocations |
-| Rules configured, record has no sensitive keys | ~900 | 1 | Your normal traffic with redaction armed: ~+25% |
-| Redacting/masking top-level keys | ~980 | 4 | A protected log line costs about 1µs |
-| Sensitive struct, nested two deep | ~2250 | 29 | Reflection is the expensive path — 3× baseline |
+| Rules configured, record has no sensitive keys | ~850 | 1 | Your normal traffic with redaction armed: ~+20% |
+| Redacting/masking top-level keys | ~940 | 4 | A protected log line costs about 1µs |
+| Sensitive struct, nested two deep | ~1930 | 26 | Reflection is the expensive path — ~3× baseline |
 
 The practical takeaway from the last two rows: on your hottest code paths, pass sensitive values as top-level keys (`"card_number", pan`) rather than logging whole structs — identical protection, a third of the cost. Struct logging is fine everywhere else.
 

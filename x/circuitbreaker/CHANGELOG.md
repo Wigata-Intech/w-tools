@@ -4,12 +4,13 @@ All notable changes to `x/circuitbreaker` are documented here. Format follows [K
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-14
+
 ### Changed
 
+- README: benchmark section carries device specs, the exact command, and raw output above the summary table
+
 - README: pkg.go.dev reference badge under the pitch, and the `go get` install command opening How-it-solves-it
-
-
-
 
 ## [0.1.0] - 2026-08-12
 
