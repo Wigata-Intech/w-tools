@@ -21,6 +21,5 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        env:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
