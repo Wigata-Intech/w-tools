@@ -60,6 +60,7 @@ Design approved 2026-08-14; shipped as `x/sshx/v0.1.0` 2026-08-15 (persistent SS
 | ✅ | `Pool`/`Managed`: self-healing per-host connections, jittered exponential backoff, pool-wide dial cap, non-blocking `ErrNotReady`, `OnStateChange` |
 | ✅ | Stream-based sessions: `Shell` with optional PTY and live `Resize` — the library never touches the local terminal |
 | ✅ | `keys` subpackage: parse / load with passphrase callback / generate (Ed25519 default, RSA ≥ 2048); fuzzers on the parse and comment round-trip invariants |
+| ✅ | `IsAuthFailure` — the one audited auth classifier, so consumers never substring-match dial errors (fed back from the first adoption); shipped in `v0.1.1` |
 | 💡 | ssh-agent auth (`SSH_AUTH_SOCK`) — additive once a real consumer asks |
 | 💡 | Jump/bastion hosts — needs its own design pass |
 

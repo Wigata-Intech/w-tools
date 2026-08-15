@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,6 +49,26 @@ func (e *DialError) Error() string {
 
 // Unwrap exposes the underlying error to errors.Is and errors.As.
 func (e *DialError) Unwrap() error { return e.Err }
+
+// IsAuthFailure reports whether err represents an SSH authentication
+// rejection — key not accepted, wrong password, no method left to try. It is
+// a heuristic, not a guarantee: x/crypto exposes no typed auth error, so this
+// is the one place in the module that inspects error text, pinned by tests
+// against real rejections so an upstream rewording breaks here, loudly,
+// instead of silently in every consumer.
+func IsAuthFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	var de *DialError
+	if errors.As(err, &de) {
+		if de.Stage != StageHandshake {
+			return false
+		}
+		err = de.Err
+	}
+	return strings.Contains(err.Error(), "unable to authenticate")
+}
 
 // Config configures a Dial. HostKey and at least one Auth method are
 // required; there are no insecure defaults.

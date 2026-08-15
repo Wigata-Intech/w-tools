@@ -208,6 +208,9 @@ func TestDial(t *testing.T) {
 		if de.Stage != sshx.StageHandshake {
 			t.Errorf("Stage = %q, want %q", de.Stage, sshx.StageHandshake)
 		}
+		if !sshx.IsAuthFailure(err) {
+			t.Errorf("IsAuthFailure(%v) = false, want true for a real rejection", err)
+		}
 	})
 
 	t.Run("context cancellation mid dial", func(t *testing.T) {
@@ -312,6 +315,10 @@ func TestClientClose(t *testing.T) {
 var (
 	errBoom          = errors.New("boom")
 	errInnerSentinel = errors.New("inner")
+	errHandshakeAuth = errors.New("ssh: handshake failed: ssh: unable to authenticate, attempted methods [publickey]")
+	errHandshakeEOF  = errors.New("ssh: handshake failed: EOF")
+	errBareAuthText  = errors.New("ssh: unable to authenticate")
+	errRefusedConn   = errors.New("connection refused")
 )
 
 func TestDialError_Error(t *testing.T) {
@@ -384,4 +391,45 @@ func TestDialError_Unwrap(t *testing.T) {
 			t.Errorf("errors.As target = %v, want %v", mismatch, inner)
 		}
 	})
+}
+
+func TestIsAuthFailure(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		input    error
+		expected bool
+	}{
+		{name: "nil", input: nil, expected: false},
+		{
+			name:     "handshake-stage auth text",
+			input:    &sshx.DialError{Stage: sshx.StageHandshake, Addr: "a:22", Err: errHandshakeAuth},
+			expected: true,
+		},
+		{
+			name:     "handshake-stage non-auth failure",
+			input:    &sshx.DialError{Stage: sshx.StageHandshake, Addr: "a:22", Err: errHandshakeEOF},
+			expected: false,
+		},
+		{
+			name:     "hostkey stage never classifies as auth",
+			input:    &sshx.DialError{Stage: sshx.StageHostKey, Addr: "a:22", Err: &sshx.UnknownHostKeyError{Host: "a:22"}},
+			expected: false,
+		},
+		{
+			name:     "network stage never classifies as auth",
+			input:    &sshx.DialError{Stage: sshx.StageNetwork, Addr: "a:22", Err: errRefusedConn},
+			expected: false,
+		},
+		{name: "bare auth text without DialError", input: errBareAuthText, expected: true},
+		{name: "unrelated error", input: errRefusedConn, expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sshx.IsAuthFailure(tt.input); got != tt.expected {
+				t.Errorf("IsAuthFailure(%v) = %v, want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
 }

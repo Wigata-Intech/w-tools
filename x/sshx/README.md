@@ -2,7 +2,7 @@
 
 > Persistent SSH connections that manage themselves — dial once, run many, heal on failure.
 
-**Status: experimental, under `x/`, at `v0.1.0`.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Nothing at the w-tools root depends on it — never build anything load-bearing on an `x/` package. Graduation to the root, under a new import path, is the only way it earns stability.
+**Status: experimental, under `x/`, at `v0.1.1`.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Nothing at the w-tools root depends on it — never build anything load-bearing on an `x/` package. Graduation to the root, under a new import path, is the only way it earns stability.
 
 ## TL;DR
 
@@ -129,5 +129,5 @@ As of `v0.1.0`:
 - Command output is never discarded on failure — whatever arrived is returned alongside the error.
 - `Managed` execution methods return `ErrNotReady` immediately when the host is down; they never block waiting for a reconnect.
 - A non-zero remote exit never tears down the connection; only transport-level failures trigger redial.
-- All errors are typed; nothing in this module inspects error message text, and yours doesn't have to either.
+- All errors are typed. The single, deliberate exception to "never inspect error text" is `IsAuthFailure` — one audited classifier, pinned by tests against real rejections from a live SSH server, so *your* code never has to substring-match.
 - The `x/` contract: this API may change or vanish. Pin a tag.

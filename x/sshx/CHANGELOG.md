@@ -4,6 +4,12 @@ All notable changes to `x/sshx` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-15
+
+### Added
+
+- `IsAuthFailure` — reports whether a dial error was an SSH authentication rejection. Born from the first consumer adoption: classifying auth failures otherwise forces every consumer to substring-match x/crypto's error text; the one unavoidable heuristic now lives here, pinned by tests against real rejections so an upstream rewording breaks loudly in one place
+
 ## [0.1.0] - 2026-08-15
 
 ### Added
