@@ -18,17 +18,20 @@ import (
 // scripted failures, and a lock flag. It backs a database/sql driver so
 // the engine runs its real SQL paths with no real database.
 type fakeState struct {
-	mu       sync.Mutex
-	history  map[int64][4]string // version -> name, checksum, applied_at
-	executed []string            // every statement, in order
-	failOn   map[string]error    // substring of statement -> injected error
-	lockBusy bool                // GET_LOCK returns 0
-	beginErr error               // injected from BeginTx
-	rowsErr  error               // returned by history rows after the last row
-	badRow   bool                // history rows yield a wrongly typed version
-	journal  map[int64][4]string // pending inserts inside an open tx
-	deletes  map[int64]bool      // pending deletes inside an open tx
-	inTx     bool
+	mu            sync.Mutex
+	history       map[int64][4]string // version -> name, checksum, applied_at
+	executed      []string            // every statement, in order
+	failOn        map[string]error    // substring of statement -> injected error
+	lockBusy      bool                // GET_LOCK returns 0
+	beginErr      error               // injected from BeginTx
+	rowsErr       error               // returned by history rows after the last row
+	badRow        bool                // history rows yield a wrongly typed version
+	journal       map[int64][4]string // pending inserts inside an open tx
+	deletes       map[int64]bool      // pending deletes inside an open tx
+	inTx          bool
+	dirty         map[int64]bool // version -> dirty flag (mysql only in practice)
+	badDirtyRow   bool           // dirty-version rows yield a wrongly typed version
+	noDirtyColumn bool           // simulates a history table predating the dirty column, healed by New's ALTER TABLE
 
 	// serialize makes the fake locks real: BEGIN/GET_LOCK block on
 	// writerMu until COMMIT/ROLLBACK/RELEASE_LOCK. Set before any
@@ -72,6 +75,14 @@ func (s *fakeState) setApplied(version int64, name, checksum, appliedAt string) 
 	s.history[version] = [4]string{name, checksum, appliedAt}
 }
 
+// setDirty seeds a dirty flag for a version without touching history —
+// scenarios that start already dirty from a previous failed run.
+func (s *fakeState) setDirty(version int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dirty[version] = true
+}
+
 //nolint:gochecknoglobals // one process-wide counter mints unique driver names; sql.Register allows no unregister
 var fakeSeq atomic.Int64
 
@@ -81,6 +92,7 @@ func fakeDB(tb testing.TB) (*sql.DB, *fakeState) {
 	state := &fakeState{
 		history: map[int64][4]string{},
 		failOn:  map[string]error{},
+		dirty:   map[int64]bool{},
 	}
 	name := fmt.Sprintf("migrationx-fake-%d", fakeSeq.Add(1))
 	sql.Register(name, fakeDriver{state: state})
@@ -128,6 +140,7 @@ func (s *fakeState) commitLocked() {
 	maps.Copy(s.history, s.journal)
 	for v := range s.deletes {
 		delete(s.history, v)
+		delete(s.dirty, v)
 	}
 	s.inTx, s.journal, s.deletes = false, nil, nil
 }
@@ -192,12 +205,22 @@ func (c *fakeConn) ExecContext(ctx context.Context, query string, args []driver.
 		} else {
 			s.history[version] = row
 		}
+		if strings.Contains(query, "dirty") {
+			s.dirty[version] = true
+		}
+	case strings.HasPrefix(query, "UPDATE") && strings.Contains(query, "dirty"):
+		value, _ := args[0].Value.(int64)
+		version, _ := args[1].Value.(int64)
+		s.dirty[version] = value != 0
+	case strings.HasPrefix(query, "ALTER TABLE") && strings.Contains(query, "ADD COLUMN dirty"):
+		s.noDirtyColumn = false
 	case strings.HasPrefix(query, "DELETE FROM"):
 		version, _ := args[0].Value.(int64)
 		if s.inTx {
 			s.deletes[version] = true
 		} else {
 			delete(s.history, version)
+			delete(s.dirty, version)
 		}
 	}
 	return driver.RowsAffected(1), nil
@@ -219,6 +242,14 @@ func (c *fakeConn) QueryContext(ctx context.Context, query string, args []driver
 		}
 	}
 
+	if strings.Contains(query, "information_schema.columns") {
+		rows := &fakeRows{cols: []string{"one"}}
+		if !s.noDirtyColumn {
+			rows.rows = [][]driver.Value{{int64(1)}}
+		}
+		return rows, nil
+	}
+
 	if strings.HasPrefix(query, "SELECT 1 FROM") {
 		version, _ := args[0].Value.(int64)
 		_, committed := c.state.history[version]
@@ -227,6 +258,21 @@ func (c *fakeConn) QueryContext(ctx context.Context, query string, args []driver
 		rows := &fakeRows{cols: []string{"one"}}
 		if (committed || journaled) && !doomed {
 			rows.rows = [][]driver.Value{{int64(1)}}
+		}
+		return rows, nil
+	}
+
+	if strings.HasPrefix(query, "SELECT version FROM") && strings.Contains(query, "dirty") {
+		rows := &fakeRows{cols: []string{"version"}}
+		for v, dirty := range s.dirty {
+			if !dirty {
+				continue
+			}
+			value := any(v)
+			if s.badDirtyRow {
+				value = "not-a-number"
+			}
+			rows.rows = append(rows.rows, []driver.Value{value})
 		}
 		return rows, nil
 	}

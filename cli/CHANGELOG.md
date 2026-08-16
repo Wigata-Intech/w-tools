@@ -4,6 +4,10 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Added
+
+- `migrationx`: dirty-state tracking for no-transaction migrations on mysql — the history table's `dirty` column marks a version before its statements run and clears it on success, `Up`/`Down` refuse to rerun while any version is dirty, `Status` reports it inline via `Migration.Dirty` instead of failing, and `New` heals a history table created before this column existed by adding it automatically
+
 ## [0.1.0] - 2026-08-14
 
 ### Added
