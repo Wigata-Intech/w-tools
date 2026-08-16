@@ -4,6 +4,14 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Added
+
+- `migrationx`: `UpTo`/`DownTo` log a warning when the given version matches no migration on the filesystem, instead of silently applying against the nearest bound
+
+### Changed
+
+- `migrationx`: `Migration` gains an `Orphaned` field; `Status` now reports an applied migration whose file is missing from the filesystem with `Orphaned` set instead of failing the call — `Up`, `Down`, and `Version` still fail closed on the same condition
+
 ## [0.1.0] - 2026-08-14
 
 ### Added
