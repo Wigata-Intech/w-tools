@@ -524,9 +524,11 @@ func firstLine(stmt string) string {
 	return line
 }
 
-// parseTime reads either dialect's stored format; a zero time means the
-// stored value was unreadable, which Status surfaces as-is rather than
-// failing a read-only report.
+// parseTime reads either dialect's stored format — RFC3339 from sqlite's
+// TEXT column, time.DateTime from mysql's DATETIME column, matching each
+// dialect's formatTime — and a zero time means the stored value was
+// unreadable, which Status surfaces as-is rather than failing a
+// read-only report.
 func parseTime(s string) time.Time {
 	for _, layout := range []string{time.RFC3339, time.DateTime} {
 		if t, err := time.Parse(layout, s); err == nil {
