@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-`w-tools` is [Wigata InTech](https://wigataintech.com)'s open-source Go toolbox: focused packages we run in our own production services first, and publish because they're useful beyond us. One discipline holds everything together — **standard library first, zero third-party dependencies, CGO-free**. The single carve-out: an `x/` package implementing a protocol the standard library doesn't cover may use an allowlisted, Go-team-maintained `golang.org/x` module (today: `x/crypto` for SSH) — never anything beyond that. If a package here can't justify itself without pulling in half the ecosystem, it doesn't ship.
+`w-tools` is [Wigata InTech](https://wigataintech.com)'s open-source Go toolbox: focused packages we run in our own production services first, and publish because they're useful beyond us. One discipline holds everything together — **standard library first, zero third-party dependencies, CGO-free**. The single carve-out: an `x/` package implementing a protocol the standard library doesn't cover may use an allowlisted, Go-team-maintained `golang.org/x` module (today: `x/crypto`, for SSH and password hashing) — never anything beyond that. If a package here can't justify itself without pulling in half the ecosystem, it doesn't ship.
 
 ## TL;DR
 
