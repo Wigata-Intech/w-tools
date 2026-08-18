@@ -5,7 +5,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -141,4 +143,42 @@ func BenchmarkRateLimitParallel(b *testing.B) {
 			h.ServeHTTP(w, req)
 		}
 	})
+}
+
+// BenchmarkIdempotencyFirst is the winner's path: claim, execute,
+// capture, store — a unique key per iteration.
+func BenchmarkIdempotencyFirst(b *testing.B) {
+	// Sized to b.N so capacity behavior never enters the measurement.
+	handler := middleware.Idempotency(middleware.IdempotencyConfig{Store: middleware.NewMemoryStore(b.N + 1)})(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id":"ord_1"}`)) //nolint:errcheck,gosec // benchmark writer never fails
+		}))
+
+	b.ReportAllocs()
+	for i := range b.N {
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/orders", strings.NewReader(`{"amount":1}`))
+		r.Header.Set("Idempotency-Key", "bench-"+strconv.Itoa(i))
+		handler.ServeHTTP(&nopWriter{h: make(http.Header)}, r)
+	}
+}
+
+// BenchmarkIdempotencyReplay is the duplicate's path: one stored
+// response served from the store on every iteration.
+func BenchmarkIdempotencyReplay(b *testing.B) {
+	handler := middleware.Idempotency(middleware.IdempotencyConfig{Store: middleware.NewMemoryStore(0)})(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id":"ord_1"}`)) //nolint:errcheck,gosec // benchmark writer never fails
+		}))
+	seed := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/orders", strings.NewReader(`{"amount":1}`))
+	seed.Header.Set("Idempotency-Key", "bench-replay")
+	handler.ServeHTTP(&nopWriter{h: make(http.Header)}, seed)
+
+	b.ReportAllocs()
+	for range b.N {
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/orders", strings.NewReader(`{"amount":1}`))
+		r.Header.Set("Idempotency-Key", "bench-replay")
+		handler.ServeHTTP(&nopWriter{h: make(http.Header)}, r)
+	}
 }

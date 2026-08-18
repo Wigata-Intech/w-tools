@@ -48,6 +48,24 @@ func BenchmarkPassThrough(b *testing.B) {
 	}
 }
 
+// BenchmarkContextAttrs is the enriched path: one extractor call, a
+// record clone, and two appended attrs per emitted record.
+func BenchmarkContextAttrs(b *testing.B) {
+	type ridKey struct{}
+	ctx := context.WithValue(context.Background(), ridKey{}, "req-bench-1")
+	log := logger.New(logger.Config{
+		Writer: io.Discard,
+		ContextAttrs: func(ctx context.Context) []slog.Attr {
+			id, _ := ctx.Value(ridKey{}).(string)
+			return []slog.Attr{slog.String("request_id", id), slog.String("trace_id", "0af7651916cd43dd8448eb211c80319c")}
+		},
+	})
+	b.ReportAllocs()
+	for range b.N {
+		log.Info(ctx, "payment created", "order_id", "ord_123", "amount_jpy", 4980, "region", "ap-northeast-1", "attempt", 1, "ok", true)
+	}
+}
+
 // BenchmarkRulesNoMatch pays for the walk but rewrites nothing — the
 // copy-on-write path.
 func BenchmarkRulesNoMatch(b *testing.B) {

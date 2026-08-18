@@ -4,6 +4,13 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-18
+
+### Added
+
+- `middleware.Idempotency` — at-most-once handler execution per `Idempotency-Key` within a TTL: stored-response replay marked `Idempotency-Replayed: true` or configurable reject, payload-mismatch 422, in-flight duplicate 409, key `Prefix` namespacing, capped request-body fingerprint read (`MaxRequestBodyBytes`, 413 past it). Storage is a plain key-value `Store` interface whose four methods map 1:1 to Redis commands (`SetNX`/`Get`/`Set`/`Delete` = `SET NX PX`/`GET`/`SET XX KEEPTTL`/`DEL`) — the bounded `MemoryStore` ships in-package, a Redis implementation makes it distributed with no middleware change. Only observed completions are stored — 5xx, panics, and oversized bodies release the claim so retries re-execute; store errors fail closed, and nothing live is ever evicted
+- `middleware.RealIPFrom` — reads the client IP `RealIP` concluded from the request context, for layers holding only a `ctx` (log enrichment being the driving consumer). `RealIP` now stores its conclusion in the context on every parseable request, including with no trusted proxies configured
+
 ## [0.1.1] - 2026-08-14
 
 ### Changed

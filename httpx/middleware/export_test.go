@@ -14,8 +14,9 @@ func SetRandSource(r io.Reader) (restore func()) { //nolint:nonamedreturns // th
 	return func() { randSource = prev }
 }
 
-// SetTimeNow swaps the rate limiter's clock for a test and returns a
-// restore func. Driven clocks instead of sleeps.
+// SetTimeNow swaps the package clock (rate limiter, idempotency
+// MemoryStore) for a test and returns a restore func. Driven clocks
+// instead of sleeps.
 func SetTimeNow(now func() time.Time) (restore func()) { //nolint:nonamedreturns // the name documents the contract: defer the restore
 	prev := timeNow
 	timeNow = now

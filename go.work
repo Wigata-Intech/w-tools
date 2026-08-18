@@ -7,5 +7,6 @@ use (
 	./httpx/examples
 	./logger
 	./x/circuitbreaker
+	./x/hasher
 	./x/sshx
 )

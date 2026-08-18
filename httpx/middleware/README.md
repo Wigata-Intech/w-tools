@@ -10,12 +10,13 @@
 go get github.com/Wigata-Intech/w-tools/httpx
 ```
 
-- **RealIP** — trusts client-IP headers only from your `TrustedProxies` CIDRs (`PrivateNetworks()` covers internal hops); an unparseable header entry abandons the whole header — spoof-resistant
+- **RealIP** — trusts client-IP headers only from your `TrustedProxies` CIDRs (`PrivateNetworks()` covers internal hops); an unparseable header entry abandons the whole header — spoof-resistant. The concluded IP is also stored in the request context: `RealIPFrom(ctx)` reads it anywhere below (log enrichment, audit trails)
 - **RequestID** / **Trace** — reuse-or-mint `X-Request-ID`; W3C `traceparent` in/out with fresh span ids, no OpenTelemetry dependency; ids via `RequestIDFrom`/`TraceIDFrom`/`SpanIDFrom`
 - **Logger** — one JSON access line per request; opt-in body capture (capped, JSON logged structurally, non-JSON as size only) that inherits your logger's redaction
 - **Recover** — panics become RFC 9457 500s with stack logging
 - **CORS** — Fetch-spec preflights, `Vary: Origin` always (cache-poison-proof), wildcard+credentials panics at boot
 - **RateLimit** — per-key token bucket with bounded memory and `Retry-After`; bring your own store via the `Limiter` interface
+- **Idempotency** — at-most-once handler execution per `Idempotency-Key` (POST by default): atomic claim, stored-response replay or configurable reject, payload-mismatch 422, in-flight duplicate 409; 5xx and panics release the claim so retries re-execute. Bring your own store via the `Store` interface — four key-value methods, each mapping 1:1 to a Redis command (`SetNX` = `SET NX PX`, `Get` = `GET`, `Set` = `SET XX KEEPTTL`, `Delete` = `DEL`); the bounded `MemoryStore` ships in-package
 
 ## How to use with httpx
 

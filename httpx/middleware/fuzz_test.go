@@ -2,10 +2,12 @@ package middleware_test
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/Wigata-Intech/w-tools/httpx/middleware"
@@ -90,6 +92,75 @@ func FuzzTraceparent(f *testing.F) {
 		}
 		if len(spanID) != 16 || !hexRe.MatchString(spanID) {
 			t.Fatalf("span id %q is not 16-char lowercase hex", spanID)
+		}
+	})
+}
+
+// FuzzIdempotency feeds attacker-controlled keys, paths, and bodies
+// through Idempotency. Invariants: never panic; an identical duplicate
+// is replayed byte-for-byte and marked; a different body under the same
+// key is refused with 422 and never reaches the handler.
+func FuzzIdempotency(f *testing.F) {
+	f.Add("key-1", "/orders", "{\"a\":1}", "{\"a\":2}")
+	f.Add("", "/x", "", "body")
+	f.Add("k\x00k", "/a%2Fb", "…!?", "…!?x")
+	f.Add("same", "/p", "payload", "payload")
+
+	f.Fuzz(func(t *testing.T, key, path, body1, body2 string) {
+		executions := 0
+		h := middleware.Idempotency(middleware.IdempotencyConfig{
+			Store: middleware.NewMemoryStore(0),
+		})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			executions++
+			b, _ := io.ReadAll(r.Body)
+			w.WriteHeader(http.StatusCreated)
+			w.Write(b) //nolint:errcheck,gosec // test writer never fails
+		}))
+
+		send := func(body string) *httptest.ResponseRecorder {
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/fixed", strings.NewReader(body))
+			// Assigned after construction so arbitrary fuzzed paths reach
+			// the fingerprint without tripping request-line validation.
+			r.URL.Path = path
+			if key != "" {
+				r.Header.Set("Idempotency-Key", key)
+			}
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, r)
+
+			return rr
+		}
+
+		first := send(body1)
+		second := send(body2)
+
+		if key == "" {
+			if executions != 2 {
+				t.Fatalf("keyless requests executed %d times, want 2", executions)
+			}
+
+			return
+		}
+
+		if body1 == body2 {
+			if executions != 1 {
+				t.Fatalf("identical duplicate executed handler %d times, want 1", executions)
+			}
+			if second.Code != first.Code || second.Body.String() != first.Body.String() {
+				t.Fatalf("replay differs: %d %q vs %d %q", second.Code, second.Body.String(), first.Code, first.Body.String())
+			}
+			if second.Header().Get("Idempotency-Replayed") != "true" {
+				t.Fatal("replay not marked")
+			}
+
+			return
+		}
+
+		if second.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("mismatched duplicate status = %d, want 422", second.Code)
+		}
+		if executions != 1 {
+			t.Fatalf("mismatched duplicate executed handler %d times, want 1", executions)
 		}
 	})
 }

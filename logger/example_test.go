@@ -16,7 +16,7 @@ func ExampleWrap() {
 			return a
 		},
 	})
-	log := slog.New(logger.Wrap(h, logger.RedactConfig{Redacted: []string{"password"}}))
+	log := slog.New(logger.Wrap(h, logger.WrapConfig{Redact: logger.RedactConfig{Redacted: []string{"password"}}}))
 	log.Info("login", "user", "dhira", "password", "hunter2")
 	// Output: {"level":"INFO","msg":"login","user":"dhira","password":"[REDACTED]"}
 }

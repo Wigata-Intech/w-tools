@@ -43,3 +43,6 @@ linters:
       # Table tests repeat literals ("hunter2", card numbers) on purpose.
       - path: _test\.go$
         linters: [goconst]
+      # Example programs print their demonstration output.
+      - path: examples/
+        linters: [forbidigo]

@@ -19,13 +19,14 @@ w-tools/
 │   └── examples/    # own module, workspace-only — the one place siblings assemble
 └── x/
     ├── circuitbreaker/  # experimental: three-state breaker (own module, deletable)
-    └── sshx/            # experimental: persistent SSH connection management (own module; the one allowlisted dependency)
+    ├── hasher/          # experimental: argon2id password hashing (own module; allowlisted x/crypto dependency)
+    └── sshx/            # experimental: persistent SSH connection management (own module; allowlisted x/crypto dependency)
         └── keys/        # same module: key parse/load/generate
 ```
 
 ## Hard rules
 
-1. **Zero third-party dependencies.** Never add a `require` to any `go.mod`. Single exception: a module under `x/` implementing a protocol the standard library doesn't cover may require an **allowlisted `golang.org/x` module** — one maintainer approval per (module, dependency) pair, granted before the `require` is written. Current allowlist: `x/sshx` → `golang.org/x/crypto` (its own `// indirect` graph entries, recorded by `go mod tidy`, ride along). If a task seems to need anything else, stop and report why instead of adding it.
+1. **Zero third-party dependencies.** Never add a `require` to any `go.mod`. Single exception: a module under `x/` implementing a protocol the standard library doesn't cover may require an **allowlisted `golang.org/x` module** — one maintainer approval per (module, dependency) pair, granted before the `require` is written. Current allowlist: `x/sshx` → `golang.org/x/crypto` and `x/hasher` → `golang.org/x/crypto` (their own `// indirect` graph entries, recorded by `go mod tidy`, ride along). If a task seems to need anything else, stop and report why instead of adding it.
 2. **Modules never require each other.** Root modules stay independent — no cross-module imports inside the family. The `examples/` module is the one place siblings assemble, and it is never tagged.
 3. **CGO-free.** Nothing that breaks `CGO_ENABLED=0` cross-compilation.
 4. **The module's `go.mod` directive is the API floor** — don't call stdlib APIs newer than it. Floors carry a patch version (e.g. `go 1.23.12`) so `govulncheck` analyzes against a patched stdlib; raising a floor is a maintainer decision.
@@ -62,6 +63,7 @@ tests := []struct {
 - A case whose shape differs from the table's (needs goroutines, recover, mid-case clock moves, bespoke writers) becomes a named `t.Run` subtest after the table — never a table case dragging one-off fields every other case must carry dead.
 - Concurrent cases for anything shared. Assert specific errors — never weaken an assertion to make a test pass.
 - 100% statement coverage is the bar; a deliberate gap needs a stated reason.
+- **Test structure tiers:** static data in `testdata/`; a rig/fake serving one package lives beside the tests in a `_test.go` file named for what it provides (`server_test.go`); a rig shared by 2+ packages is promoted to `internal/<domain>test/` (the `httptest` naming convention — never a grab-bag `testutil/` or a `fixture/` dir), promoted on the second consumer, never speculatively. Tests requiring real external services are `<subject>_integration_test.go` behind `//go:build integration`, excluded from the default gate with their own make target — hermetic in-process rigs are not integration tests and stay untagged.
 
 ## Verification gate
 

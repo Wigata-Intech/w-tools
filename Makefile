@@ -2,7 +2,7 @@
 # `make check` is the whole gate; CI runs the same targets, in the same order.
 # Order: cheap static checks -> compile -> dynamic -> network. Fail fast, fail cheap.
 
-MODULES := cli httpx logger x/circuitbreaker x/sshx
+MODULES := cli httpx logger x/circuitbreaker x/hasher x/sshx
 
 .PHONY: check fmt vet lint build test examples vuln cover bench fuzz
 

@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "weekly"
 
-  # One gomod entry per module; x/sshx is the only one with a real dependency.
+  # One gomod entry per module; x/hasher and x/sshx are the ones with real dependencies.
   - package-ecosystem: "gomod"
     directory: "/cli"
     schedule:
@@ -33,6 +33,11 @@ updates:
 
   - package-ecosystem: "gomod"
     directory: "/x/circuitbreaker"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "gomod"
+    directory: "/x/hasher"
     schedule:
       interval: "weekly"
 

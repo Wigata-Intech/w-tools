@@ -28,6 +28,13 @@ type Config struct {
 
 	Redact RedactConfig
 	Writer io.Writer // default os.Stdout
+
+	// ContextAttrs, when set, is called once per emitted record with the
+	// record's context; the returned attrs are appended to the record
+	// before redaction. Wire it to context accessors from the middleware
+	// layer (request ID, trace ID, client IP) — this package never reads
+	// context keys itself. Nil disables enrichment.
+	ContextAttrs func(ctx context.Context) []slog.Attr
 }
 
 // Logger wraps a *slog.Logger. Create one with New.
@@ -49,7 +56,7 @@ func New(cfg Config) *Logger {
 		fast:   slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level}),
 		rename: slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level, ReplaceAttr: renameLevel}),
 	}
-	s := slog.New(Wrap(split, cfg.Redact))
+	s := slog.New(Wrap(split, WrapConfig{Redact: cfg.Redact, ContextAttrs: cfg.ContextAttrs}))
 	var base []any
 	for _, f := range [...]struct{ key, val string }{
 		{"env", cfg.Env}, {"version", cfg.Version}, {"app", cfg.App}, {"protocol", string(cfg.Protocol)},
@@ -62,6 +69,35 @@ func New(cfg Config) *Logger {
 		s = s.With(base...)
 	}
 	return &Logger{s: s, level: level}
+}
+
+// WrapConfig configures Wrap: the layers applied over an existing
+// slog.Handler. Zero-value fields add nothing.
+type WrapConfig struct {
+	Redact RedactConfig
+
+	// ContextAttrs behaves exactly as Config.ContextAttrs.
+	ContextAttrs func(ctx context.Context) []slog.Attr
+}
+
+// Wrap layers redaction and context enrichment over an existing
+// slog.Handler — the adoption path for services already holding a
+// *slog.Logger. New is built on it:
+//
+//	log := slog.New(logger.Wrap(existingHandler, logger.WrapConfig{
+//	    Redact:       redactCfg,
+//	    ContextAttrs: fromCtx,
+//	}))
+//
+// Enrichment runs above redaction, so extracted attrs are redacted
+// like call-site attrs. An extracted attr whose key the record already
+// carries is dropped — the call site wins, and a line never repeats a
+// key (attrs bound with With live in the handler and are not
+// consulted). Appended attrs render as if passed at the call site: a
+// logger derived with WithGroup places them inside that group. A
+// zero-value config returns h unchanged.
+func Wrap(h slog.Handler, cfg WrapConfig) slog.Handler {
+	return wrapContext(wrapRedact(h, cfg.Redact), cfg.ContextAttrs)
 }
 
 // splitHandler exists because of a slog quirk: the only way to print "PANIC"

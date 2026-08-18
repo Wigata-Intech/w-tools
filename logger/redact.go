@@ -49,13 +49,9 @@ type redactHandler struct {
 	plans       *sync.Map // reflect.Type -> []fieldPlan, shared across derived handlers
 }
 
-// Wrap layers redaction over an existing slog.Handler. New is built on it;
-// services already holding a *slog.Logger adopt just the redaction layer:
-//
-//	log := slog.New(logger.Wrap(existingHandler, redactCfg))
-//
-// With no rules configured, Wrap returns h unchanged.
-func Wrap(h slog.Handler, r RedactConfig) slog.Handler {
+// wrapRedact layers redaction over h; with no rules configured it
+// returns h unchanged.
+func wrapRedact(h slog.Handler, r RedactConfig) slog.Handler {
 	if len(r.Redacted) == 0 && len(r.Masked) == 0 {
 		return h
 	}

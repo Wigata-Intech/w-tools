@@ -26,7 +26,7 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 | ✅ | BFF rendering: structural `Renderer` interface — templ native, `html/template` adapter — plus the examples module (REST, BFF, and the CI-asserted redaction proof). **On probation**: templ ships its own `templ.Handler`, so `Render`/`Renderer` must earn their keep in the first real WiPays BFF page or be deleted before `v1.0.0` — v0 semantics make removal cheap now, impossible later |
 | ✅ | Outbound client: tuned pooling, mandatory timeout, circuit-breaker hook, traceparent propagation, and opt-in redaction-inheriting request/response logging |
 | ✅ | `x/circuitbreaker`: three-state breaker implementing the client's `Breaker` hook — experimental, own module, CI-proven fail-fast via the examples' breaker demo |
-| 💡 | Idempotency-Key middleware (server) and idempotency-aware client retries — bring-your-own store |
+| ✅ | Idempotency-Key middleware (server) — key-value `Store` interface mapping 1:1 to Redis commands (bounded `MemoryStore` in-package), response capture/replay with configurable duplicate policy, key prefix, payload-mismatch 422, everything fails closed — shipped in `httpx/v0.1.2`. Idempotency-aware client retries stay a later, separate item |
 | 💡 | `Debug` convenience constructor — the internal pprof server the README recipe builds by hand, if the recipe proves too repetitive across services |
 | 💡 | Distributed rate limiting: a store-backed `Limiter` (Redis), likely under `x/` |
 | 💡 | Distributed circuit breaking — *uncertain on purpose*: the seam already exists (any Redis-backed implementation of `client.Breaker` plugs in today), and per-instance breaking is usually the correct semantic; if cluster coordination is ever proven necessary, the shape is local breakers sharing observations asynchronously and deciding locally — never a network hop inside `Allow` |
@@ -44,10 +44,20 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 | ✅ | Internal benchmarks — no-rules path measured at parity with raw slog, zero allocations |
 | ✅ | Fuzzing: mask invariants and full-pipeline redaction, 10M+ executions clean |
 | 🚧 | First production adoption in a Wigata InTech service — gates `v1.0.0` |
-| 🚧 | Automatic enrichment from `ctx` — request id, trace id, real IP on every line, configurable (the sibling-dependency law means logger takes extractor funcs, never middleware's ctx keys) |
+| ✅ | Automatic enrichment from `ctx` — request id, trace id, real IP on every line via the `ContextAttrs` extractor func, off by default, call-site keys win (the sibling-dependency law: logger takes extractor funcs, never middleware's ctx keys; companion `middleware.RealIPFrom` in `httpx/v0.1.2`) — shipped in `logger/v0.1.3` |
 | 💡 | Comparative benchmarks vs zap, zerolog, logrus — README material, after the API freezes |
 | 💡 | Async/buffered slog handler — take log emission off the request path in one place instead of per-middleware goroutines |
 | 💡 | Call-site / stack trace support (`AddSource`, stack attr on `Error`/`Panic`) — shaped by real WiPays usage |
+
+## x/hasher
+
+Design approved 2026-08-18 (allowlist pair `x/hasher` → `golang.org/x/crypto` granted with it); shipped as `x/hasher/v0.1.0` same day.
+
+| Status | Item |
+| ------ | ---- |
+| ✅ | argon2id hashing on the RFC 9106 / OWASP profile: PHC-encoded self-describing hashes, constant-time verify with parameters from the stored string, bounds-checked verification, typed errors |
+| ✅ | `NeedsRehash` + opt-in bcrypt legacy verification (`Config.Legacy`) — credential stores migrate login by login |
+| ✅ | First consumer: golang-boilerplate register/login with the bcrypt strangler loop — proven live end to end |
 
 ## x/sshx
 
@@ -72,7 +82,7 @@ Each starts with its own RFC or design doc; 💡 means candidate, not commitment
 | ------ | ---- |
 | 💡 | `dbx` — `database/sql` ergonomics (tx helpers, timeouts, scanning); never imports a driver, tested against sqlite/mysql via the examples module |
 | 💡 | Go 1.27 compatibility pass — verify the gate under 1.27 (json/v2 becomes `encoding/json`'s engine); floor bumps stay demand-driven, since a floor excludes every consumer below it |
-| 💡 | `hasher` (argon2) — the curated `golang.org/x` allowlist for `x/` modules now exists (maintainer-approved per pair; `x/sshx` → `x/crypto` was the first); an `x/hasher` needs its own approval and design |
+| 🚧 | `health` — protocol-agnostic named-check registry (per-resource reports, cached parallel probes) with stdlib `net/http` handlers for `/livez`, `/readyz`, `/healthz` — all three first-class, the last serving uptime monitors and non-Kubernetes deployments; `SetReady(false)` is the zero-downtime drain lever; no httpx import in either direction; design drafted 2026-08-15, awaiting approval |
 | 💡 | `tomlx` / `yamlx` — config-format decoders plugging into `cli`'s decoder seam (TOML feasible; YAML only ever as a strict subset under `x/`) |
 | 💡 | `x/token` — JWT on stdlib crypto only; security-sensitive, so `x/` and heavy hardening if attempted |
-| 💡 | `x/workerpool` — reusable bounded-worker primitive |
+| 🚧 | `x/workerpool` — bounded-worker primitive: blocking `Submit` / non-blocking `TrySubmit` backpressure, panic isolation, ctx-bounded graceful drain; incubates against the boilerplate `consumer` command; design half-approved 2026-08-18 — capacity-split and task-data questions resolving before build |

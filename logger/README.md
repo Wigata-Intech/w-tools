@@ -29,33 +29,50 @@ Every Go service does the same dance: wire up `log/slog`, pick a handler, parse 
 
 ## How it solves it
 
+One `Config` covers the whole surface:
+
 ```go
 log := logger.New(logger.Config{
     Env:      "production",
     Version:  "1.4.2",
     App:      "wipays",
-    Protocol: logger.ProtocolHTTP,                    // typed constants; any Protocol("...") works
-    Level:    logger.ParseLevel(os.Getenv("LOG_LEVEL")), // or a slog.Level; zero value is Info
+    Protocol: logger.ProtocolHTTP,
+    Level:    logger.ParseLevel(os.Getenv("LOG_LEVEL")),
     Redact: logger.RedactConfig{
         Redacted: []string{"password", "authorization", "cvv"},
         Masked: map[string]logger.Mask{
             "card_number": {ShowFirst: 6, ShowLast: 4},
         },
     },
+    ContextAttrs: func(ctx context.Context) []slog.Attr {
+        var a []slog.Attr
+        if id := middleware.RequestIDFrom(ctx); id != "" {
+            a = append(a, slog.String("request_id", id))
+        }
+        return a
+    },
 })
 
 log.Info(ctx, "payment created", "order_id", "ord_123", "card_number", pan)
 ```
 
-Every log method takes a `context.Context` first — today it flows to the underlying handler; automatic enrichment from ctx (trace ids and friends) is planned, see the [roadmap](../ROADMAP.md).
+Reading it top to bottom:
 
-Already have a `*slog.Logger` you like? Keep it — add only the redaction layer:
+- **Base fields** (`Env`/`Version`/`App`/`Protocol`) stamp every line; empty ones are omitted. `Protocol` takes the typed constants or any `Protocol("...")`.
+- **`Level`** is the minimum logged; `ParseLevel` reads names from env vars, the zero value is Info.
+- **`Redact`** declares sensitive keys once and they are caught at any depth — top level, nested structs, maps, `With`-bound args. `Masked` keeps only the configured edges.
+- **`ContextAttrs`** is enrichment: every log method takes `ctx` first, and this func runs once per emitted record to turn context into attrs — so a repository log line deep below the handler still carries the request's identity, with no IDs threaded by hand. The logger never reads context keys itself; you wire your middleware's accessors (`RequestIDFrom`, `TraceIDFrom`, …). Extracted attrs pass through redaction like any other, a call-site attr with the same key wins (a line never repeats a key), and leaving it nil disables enrichment on the zero-allocation path.
+
+Already have a `*slog.Logger` you like? Keep it — `Wrap` adds the same layers over any handler; zero-value fields add nothing:
 
 ```go
-log := slog.New(logger.Wrap(existingHandler, redactCfg))
+log := slog.New(logger.Wrap(existingHandler, logger.WrapConfig{
+    Redact:       redactCfg, // or just one of the two
+    ContextAttrs: fromCtx,
+}))
 ```
 
-Runnable programs live in [`examples/`](examples/): [`payment`](examples/payment/main.go) shows PCI-style card masking on a whole struct, [`login`](examples/login/main.go) shows credentials caught in maps, `With`-bound args, and headers. `go run ./examples/payment` and read the output.
+Runnable programs live in [`examples/`](examples/): [`payment`](examples/payment/main.go) shows PCI-style card masking on a whole struct, [`login`](examples/login/main.go) shows credentials caught in maps, `With`-bound args, and headers, [`enrichment`](examples/enrichment/main.go) shows request identity flowing from ctx onto every line. `go run ./examples/payment` and read the output.
 
 ## Why it matters
 
@@ -89,29 +106,32 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/logger
 cpu: Apple M2 Pro
-BenchmarkRawSlog-10                 	 1817307	       683.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPassThrough-10             	 1679659	       703.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRulesNoMatch-10            	 1408112	       846.2 ns/op	     208 B/op	       1 allocs/op
-BenchmarkRedactTopLevel-10          	 1280845	       943.2 ns/op	     192 B/op	       4 allocs/op
-BenchmarkRedactStruct-10            	  613880	      1934 ns/op	    1298 B/op	      26 allocs/op
-BenchmarkPassThroughParallel-10     	 4392198	       268.2 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRedactStructParallel-10    	 1235324	      1472 ns/op	    1382 B/op	      27 allocs/op
-ok  	github.com/Wigata-Intech/w-tools/logger	13.925s
+BenchmarkRawSlog-10                 	 1780122	       708.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPassThrough-10             	 1743573	       704.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkContextAttrs-10            	 1000000	      1065 ns/op	     288 B/op	       4 allocs/op
+BenchmarkRulesNoMatch-10            	 1329769	       951.7 ns/op	     208 B/op	       1 allocs/op
+BenchmarkRedactTopLevel-10          	 1000000	      1005 ns/op	     192 B/op	       4 allocs/op
+BenchmarkRedactStruct-10            	  560204	      2120 ns/op	    1474 B/op	      28 allocs/op
+BenchmarkPassThroughParallel-10     	 3889734	       350.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRedactStructParallel-10    	  533304	      2319 ns/op	    1556 B/op	      29 allocs/op
+PASS
+ok  	github.com/Wigata-Intech/w-tools/logger	12.532s
 ```
 
 </details>
 
 | Situation | ns/op | allocs/op | Meaning for you |
 | --------- | ----- | --------- | --------------- |
-| Raw `log/slog`, no wrapper | ~690 | 0 | The baseline |
+| Raw `log/slog`, no wrapper | ~710 | 0 | The baseline |
 | `logger`, no redaction rules | ~700 | 0 | **The wrapper is free** — parity within run-to-run variance (±5%), zero allocations |
-| Rules configured, record has no sensitive keys | ~850 | 1 | Your normal traffic with redaction armed: ~+20% |
-| Redacting/masking top-level keys | ~940 | 4 | A protected log line costs about 1µs |
-| Sensitive struct, nested two deep | ~1930 | 26 | Reflection is the expensive path — ~3× baseline |
+| `ContextAttrs` set, two attrs appended | ~1070 | 4 | Enrichment: extractor call, duplicate-key scan, record clone |
+| Rules configured, record has no sensitive keys | ~950 | 1 | Your normal traffic with redaction armed: ~+30% |
+| Redacting/masking top-level keys | ~1000 | 4 | A protected log line costs about 1µs |
+| Sensitive struct, nested two deep | ~2100 | 28 | Reflection is the expensive path — ~3× baseline |
 
 The practical takeaway from the last two rows: on your hottest code paths, pass sensitive values as top-level keys (`"card_number", pan`) rather than logging whole structs — identical protection, a third of the cost. Struct logging is fine everywhere else.
 
-Under concurrency it scales rather than queues: eight goroutines sharing one logger push per-line cost *down* (pass-through ~276 ns/op at `-cpu 8`, still zero allocations; the struct path ~1.0µs) — the handler and the reflection plan cache are read-shared, so more cores mean more throughput, not a lock convoy.
+Under concurrency it scales rather than queues: eight goroutines sharing one logger push the pass-through per-line cost *down* (~350 ns/op at `-cpu 8`, still zero allocations) and hold the struct path essentially flat (~2.3µs) — the handler and the reflection plan cache are read-shared, so more cores mean more throughput, not a lock convoy.
 
 ## The promises
 

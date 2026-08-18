@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/netip"
@@ -9,6 +10,9 @@ import (
 
 	"github.com/Wigata-Intech/w-tools/httpx"
 )
+
+// realIPKey keys the resolved client IP in a context.
+type realIPKey struct{}
 
 // RealIPConfig configures RealIP.
 type RealIPConfig struct {
@@ -24,11 +28,11 @@ type RealIPConfig struct {
 // asserted by a trusted proxy, preserving the original port. Headers from
 // peers outside cfg.TrustedProxies are ignored and the request passes
 // through unchanged.
+//
+// The IP the middleware concludes is the client's — the asserted one
+// behind a trusted proxy, RemoteAddr's host otherwise — is also stored
+// in the request context; read it anywhere below with RealIPFrom.
 func RealIP(cfg RealIPConfig) httpx.Middleware {
-	if len(cfg.TrustedProxies) == 0 {
-		return func(next http.Handler) http.Handler { return next }
-	}
-
 	headers := cfg.Headers
 	if headers == nil {
 		headers = []string{"CF-Connecting-IP", "X-Real-IP", "X-Forwarded-For"}
@@ -42,23 +46,28 @@ func RealIP(cfg RealIPConfig) httpx.Middleware {
 				return
 			}
 
-			peer, err := netip.ParseAddr(host)
-			if err != nil || !containsAddr(cfg.TrustedProxies, peer.Unmap()) {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			for _, h := range headers {
-				client, ok := clientFromHeader(h, r.Header.Get(h), cfg.TrustedProxies)
-				if ok {
-					r.RemoteAddr = net.JoinHostPort(client.String(), port)
-					break
+			if peer, perr := netip.ParseAddr(host); perr == nil && containsAddr(cfg.TrustedProxies, peer.Unmap()) {
+				for _, h := range headers {
+					client, ok := clientFromHeader(h, r.Header.Get(h), cfg.TrustedProxies)
+					if ok {
+						host = client.String()
+						r.RemoteAddr = net.JoinHostPort(host, port)
+						break
+					}
 				}
 			}
 
-			next.ServeHTTP(w, r)
+			ctx := context.WithValue(r.Context(), realIPKey{}, host)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// RealIPFrom returns the client IP RealIP concluded for this request, or
+// "" when the middleware did not run or the peer address was unparseable.
+func RealIPFrom(ctx context.Context) string {
+	ip, _ := ctx.Value(realIPKey{}).(string)
+	return ip
 }
 
 // PrivateNetworks returns loopback plus the RFC 1918 and RFC 4193

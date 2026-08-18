@@ -15,9 +15,9 @@ import (
 func maskVia(t *testing.T, m logger.Mask, value any) string {
 	t.Helper()
 	var buf bytes.Buffer
-	h := logger.Wrap(slog.NewJSONHandler(&buf, nil), logger.RedactConfig{
+	h := logger.Wrap(slog.NewJSONHandler(&buf, nil), logger.WrapConfig{Redact: logger.RedactConfig{
 		Masked: map[string]logger.Mask{"secret": m},
-	})
+	}})
 	slog.New(h).Info("m", "secret", value)
 	var line struct {
 		Secret string `json:"secret"`

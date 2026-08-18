@@ -15,7 +15,7 @@ go get github.com/Wigata-Intech/w-tools/httpx
 - A server that's production-safe by default: every timeout on, graceful shutdown in one call
 - Route groups with shared prefixes and middleware over the stdlib `ServeMux` — every method routable, including RFC 10008 `QUERY`
 - JSON in and out: size-capped `Bind`, and errors as RFC 9457 `application/problem+json` by default
-- A standard middleware set: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction — plus the gates: `CORS` and `RateLimit` (pluggable `Limiter`)
+- A standard middleware set: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction — plus the gates: `CORS`, `RateLimit` (pluggable `Limiter`), and `Idempotency` (at-most-once execution per `Idempotency-Key`, pluggable `Store`)
 - BFF-ready HTML rendering (`Renderer` — templ satisfies it natively, `html/template` via the built-in adapter) and `ErrorMap` for one-line domain-error responses
 - An outbound `client`: pooling tuned for services (not the stdlib's 2 idle conns/host), a timeout you can't turn off, a circuit-breaker hook, trace propagation, and opt-in logging where redaction follows your logger
 - Handlers stay plain `http.HandlerFunc` — nothing to learn, nothing to eject from
@@ -154,6 +154,14 @@ ok  	github.com/Wigata-Intech/w-tools/httpx/middleware	8.270s
 The practical takeaway: the expensive thing in the stack is writing a log line, not the middleware machinery around it — and even the everything-on chain costs less than 0.3% of a 1ms handler.
 
 Under concurrency the chain holds flat (~2.8–3.1µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~364 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
+
+`Idempotency` adds ~3.3µs for the winning request (claim, capture, store) and serves a duplicate's replay in ~3.6µs without touching the handler — both invisible next to any real handler. Measured on the same machine, go1.26.6:
+
+```text
+$ cd middleware && go test -run='^$' -bench=Idempotency -benchmem .
+BenchmarkIdempotencyFirst-10     	  341473	      3340 ns/op	    7304 B/op	      38 allocs/op
+BenchmarkIdempotencyReplay-10    	  305167	      3602 ns/op	    7391 B/op	      35 allocs/op
+```
 
 The two wire-input parsers (RealIP's forwarding headers, the W3C traceparent) are fuzzed:
 

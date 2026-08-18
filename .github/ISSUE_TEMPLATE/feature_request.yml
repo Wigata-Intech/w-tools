@@ -11,6 +11,7 @@ body:
         - httpx
         - logger
         - x/circuitbreaker
+        - x/hasher
         - x/sshx
         - new package proposal
     validations:

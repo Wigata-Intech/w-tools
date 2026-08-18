@@ -4,6 +4,17 @@ All notable changes to `logger`. Format follows [Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-18
+
+### Added
+
+- Context enrichment: `Config.ContextAttrs` — an extractor func called once per emitted record with the record's context; returned attrs are appended before redaction. An extracted attr whose key the record already carries is dropped (the call site wins — a line never repeats a key). Nil (the default) disables it and keeps the zero-allocation path
+- `BenchmarkContextAttrs` — the enriched path's cost published next to the baseline
+
+### Changed
+
+- **Breaking (v0):** `Wrap` now takes a `WrapConfig` — `Wrap(h, WrapConfig{Redact, ContextAttrs})` — so the adoption path carries both layers through one door. Migrate `Wrap(h, redactCfg)` to `Wrap(h, WrapConfig{Redact: redactCfg})`
+
 ## [0.1.2] - 2026-08-14
 
 ### Changed

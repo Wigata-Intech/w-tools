@@ -14,6 +14,24 @@ const DefaultRequestIDHeader = "X-Request-ID"
 // DefaultMaxKeys caps live buckets in RateLimit's in-package limiter.
 const DefaultMaxKeys = 65536
 
+// DefaultMaxRecords caps live records in Idempotency's MemoryStore.
+const DefaultMaxRecords = 65536
+
+// DefaultIdempotencyHeader is the header Idempotency reads when
+// IdempotencyConfig.Header is empty.
+const DefaultIdempotencyHeader = "Idempotency-Key"
+
+// DefaultIdempotencyTTL bounds an idempotency record's lifetime when
+// IdempotencyConfig.TTL is unset.
+const DefaultIdempotencyTTL = 24 * time.Hour
+
+// DefaultIdempotencyMaxBody caps Idempotency's response capture and
+// request-fingerprint read when the config leaves them unset.
+const DefaultIdempotencyMaxBody = 1 << 20 // 1 MiB
+
+// sweepThrottle spaces MemoryStore's at-capacity expired sweeps.
+const sweepThrottle = time.Second
+
 // timeNow feeds the rate limiter's clock; swapped only by tests.
 var timeNow = time.Now //nolint:gochecknoglobals // test seam: driven clocks instead of sleeps
 

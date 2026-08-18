@@ -230,6 +230,78 @@ func TestRealIP(t *testing.T) {
 	}
 }
 
+func TestRealIPFrom(t *testing.T) {
+	trusted := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}
+
+	tests := []struct {
+		name     string
+		input    realIPInput
+		expected string
+	}{
+		{
+			name: "trusted peer records the asserted client",
+			input: realIPInput{
+				remoteAddr: "10.0.0.2:1234",
+				cfg:        middleware.RealIPConfig{TrustedProxies: trusted},
+				headers:    map[string]string{"X-Real-IP": "198.51.100.4"},
+			},
+			expected: "198.51.100.4",
+		},
+		{
+			name: "no trusted proxies records the RemoteAddr host",
+			input: realIPInput{
+				remoteAddr: "203.0.113.9:4567",
+				cfg:        middleware.RealIPConfig{},
+				headers:    map[string]string{"X-Real-IP": "198.51.100.4"},
+			},
+			expected: "203.0.113.9",
+		},
+		{
+			name: "untrusted peer records its own host not the spoof",
+			input: realIPInput{
+				remoteAddr: "203.0.113.9:4567",
+				cfg:        middleware.RealIPConfig{TrustedProxies: trusted},
+				headers:    map[string]string{"X-Real-IP": "198.51.100.4"},
+			},
+			expected: "203.0.113.9",
+		},
+		{
+			name: "unparseable RemoteAddr records nothing",
+			input: realIPInput{
+				remoteAddr: "garbage",
+				cfg:        middleware.RealIPConfig{TrustedProxies: trusted},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+			req.RemoteAddr = tt.input.remoteAddr
+			for k, v := range tt.input.headers {
+				req.Header.Set(k, v)
+			}
+
+			var got string
+			handler := middleware.RealIP(tt.input.cfg)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				got = middleware.RealIPFrom(r.Context())
+			}))
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+
+			if got != tt.expected {
+				t.Errorf("RealIPFrom() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+
+	t.Run("context without the middleware returns empty", func(t *testing.T) {
+		if got := middleware.RealIPFrom(context.Background()); got != "" {
+			t.Errorf("RealIPFrom(background) = %q, want empty", got)
+		}
+	})
+}
+
 func TestPrivateNetworks(t *testing.T) {
 	tests := []struct {
 		name     string
