@@ -228,6 +228,46 @@ const fuzzStaticText = "app serve token help version usage " +
 	"app: unknown command:\n" +
 	"minimum log level (env APP_TOKEN) (default <secret>) [command] [flags] Commands: Flags: -token int api token print the"
 
+// fuzzLeaks reports whether v occurs in output at a position that no
+// occurrence of a non-secret arg overlaps — an echoed arg such as
+// "unknown command: <arg>\n" can spell v together with the static text
+// around it, which is not a leak.
+func fuzzLeaks(output, v string, others []string) bool {
+	for i := 0; ; {
+		k := strings.Index(output[i:], v)
+		if k < 0 {
+			return false
+		}
+		at := i + k
+		if !fuzzOverlapsArg(output, at, at+len(v), others) {
+			return true
+		}
+		i = at + 1
+	}
+}
+
+// fuzzOverlapsArg reports whether output[start:end] overlaps any
+// occurrence of a non-empty arg in others.
+func fuzzOverlapsArg(output string, start, end int, others []string) bool {
+	for _, o := range others {
+		if o == "" {
+			continue
+		}
+		for i := 0; ; {
+			k := strings.Index(output[i:], o)
+			if k < 0 {
+				break
+			}
+			at := i + k
+			if at < end && start < at+len(o) {
+				return true
+			}
+			i = at + 1
+		}
+	}
+	return false
+}
+
 // FuzzExecute drives the whole entry point with arbitrary argv: no input
 // may panic, the exit code stays in {0, 2}, and a value handed to the
 // secret-marked flag never appears in any output — the Secret contract,
@@ -290,12 +330,17 @@ func FuzzExecute(f *testing.F) {
 			if sv.v == "" || strings.Contains(fuzzStaticText, sv.v) {
 				continue
 			}
+			others := make([]string, 0, len(args)-1)
 			for j, s := range args {
-				if j != sv.src && strings.Contains(s, sv.v) {
+				if j == sv.src {
+					continue
+				}
+				if strings.Contains(s, sv.v) {
 					continue values
 				}
+				others = append(others, s)
 			}
-			if strings.Contains(output, sv.v) {
+			if fuzzLeaks(output, sv.v, others) {
 				t.Fatalf("secret value %q leaked into output (args %q):\n%s", sv.v, args, output)
 			}
 		}
