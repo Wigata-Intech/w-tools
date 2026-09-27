@@ -79,6 +79,8 @@ The schema half of the module: timestamped SQL migration pairs, a checksummed hi
 root.Commands = append(root.Commands, migrationx.Command(openMigrator))
 ```
 
+Library-owned migrations shipped as an embedded `fs.FS` join the service's own via `migrationx.Merge` — one timeline, one history table.
+
 The file format, annotations, standalone use, and operational rules: [migrationx/README.md](migrationx/).
 
 ## Why it matters

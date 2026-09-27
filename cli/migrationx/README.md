@@ -65,6 +65,20 @@ if err := m.Up(ctx); err != nil {
 
 A `-- migrationx:no-transaction` migration carries that same exposure by design: its statements run outside any transaction, so a failure partway through can leave the schema changed with no history row to show it. The history table's `dirty` column tracks that case — `Up`/`Down` refuse to run again while any version is dirty, and `Status` surfaces it via `Migration.Dirty` instead of failing. Resolving it is a manual operator step: verify or repair the schema by hand, then either `UPDATE <table> SET dirty = 0 WHERE version = ...` or delete the row if the migration never really landed, before rerunning. `New` heals a history table created before this column existed, adding it automatically.
 
+## Library-owned migrations
+
+A shared library can ship the DDL for its own tables as an embedded `fs.FS`. `Merge` combines it with the service's migrations into one timeline, one history table, ordered by version:
+
+```go
+merged, err := migrationx.Merge(appMigrations, somelib.Migrations)
+if err != nil {
+	return err // a nil source, an unlistable source, or the same file name in two sources
+}
+m, err := migrationx.New(db, merged, migrationx.Config{Dialect: migrationx.DialectMySQL})
+```
+
+From each source's root, directories and dot-files (a `.gitkeep` keeping the `//go:embed` pattern valid) are skipped; every other file passes through, so `New` still rejects a stray or mistyped file such as `100_a.up.sq`. The same file name in two sources fails `Merge` with `ErrDuplicateFile`; the same version under two names fails `New` as it always has. Checksums are computed over each source's own bytes, and `Create` still writes to one directory — the service's.
+
 ## What it costs
 
 Fake-driver numbers — the engine's own work with the database costing nothing. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 27.0, go1.26.8.
