@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"errors"
+	"maps"
 	"net/http"
 )
 
@@ -16,6 +17,13 @@ type Problemer interface {
 // with one line. Build it before serving — it is read-only afterward,
 // so the request path takes no locks.
 type ErrorMap struct {
+	// Enrich, when set, adjusts every problem RespondRequest writes —
+	// Problemer, registry match, and bare 500 alike — before it goes out,
+	// typically adding request-scoped Extensions such as a request ID.
+	// p is a private copy whose Extensions map is non-nil and owned by
+	// this call. Nil leaves problems untouched; Respond never calls it.
+	Enrich func(r *http.Request, p *Problem)
+
 	entries []errorMapping
 }
 
@@ -43,18 +51,36 @@ func (m *ErrorMap) Map(target error, p Problem) {
 // deliberately without err.Error(), which leaks internals into
 // responses.
 func (m *ErrorMap) Respond(w http.ResponseWriter, err error) {
+	m.problem(err).Respond(w)
+}
+
+// RespondRequest is Respond with the request in hand: the Problem is
+// resolved exactly as Respond resolves it, then passed through Enrich
+// when one is set.
+func (m *ErrorMap) RespondRequest(w http.ResponseWriter, r *http.Request, err error) {
+	p := m.problem(err)
+	if m.Enrich != nil {
+		p.Extensions = maps.Clone(p.Extensions)
+		if p.Extensions == nil {
+			p.Extensions = map[string]any{}
+		}
+		m.Enrich(r, &p)
+	}
+
+	p.Respond(w)
+}
+
+func (m *ErrorMap) problem(err error) Problem {
 	var p Problemer
 	if errors.As(err, &p) {
-		p.Problem().Respond(w)
-		return
+		return p.Problem()
 	}
 
 	for _, e := range m.entries {
 		if errors.Is(err, e.target) {
-			e.problem.Respond(w)
-			return
+			return e.problem
 		}
 	}
 
-	Problem{Status: http.StatusInternalServerError}.Respond(w)
+	return Problem{Status: http.StatusInternalServerError}
 }

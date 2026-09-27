@@ -20,6 +20,13 @@ type Config struct {
 	IdleTimeout       time.Duration
 	MaxHeaderBytes    int
 	ShutdownGrace     time.Duration
+
+	// ErrorWriter, when set, writes the responses for requests no route
+	// matches: 404 for an unknown path, 405 for a known path with the
+	// wrong method, with ServeMux's Allow header kept. Middleware added
+	// with Use wraps these responses; responses from matched routes are
+	// never touched. Nil keeps ServeMux's own plain-text responses.
+	ErrorWriter ErrorWriter
 }
 
 // group embeds Group under a lowercase alias: a field literally named
@@ -40,7 +47,8 @@ type Server struct {
 	chain   []Middleware
 	handler http.Handler
 
-	grace time.Duration
+	grace       time.Duration
+	errorWriter ErrorWriter
 }
 
 // New returns a Server ready to register routes. Zero-valued config
@@ -77,7 +85,8 @@ func New(cfg Config) *Server {
 			IdleTimeout:       cfg.IdleTimeout,
 			MaxHeaderBytes:    cfg.MaxHeaderBytes,
 		},
-		grace: cfg.ShutdownGrace,
+		grace:       cfg.ShutdownGrace,
+		errorWriter: cfg.ErrorWriter,
 	}
 }
 
@@ -140,6 +149,9 @@ func (s *Server) build() http.Handler {
 
 	if s.handler == nil {
 		var h http.Handler = s.mux
+		if s.errorWriter != nil {
+			h = unmatched(s.mux, s.errorWriter)
+		}
 		for _, mw := range slices.Backward(s.chain) {
 			h = mw(h)
 		}
@@ -148,3 +160,37 @@ func (s *Server) build() http.Handler {
 
 	return s.handler
 }
+
+// unmatched serves mux, except that a request no pattern matches gets the
+// status ServeMux would have written — plus its Allow header — through
+// errorWriter instead of ServeMux's plain-text body.
+func unmatched(mux *http.ServeMux, errorWriter ErrorWriter) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h, pattern := mux.Handler(r)
+		if pattern != "" {
+			mux.ServeHTTP(w, r) // sets r.Pattern and path values; mux.Handler does not
+			return
+		}
+
+		d := &discardWriter{header: http.Header{}}
+		h.ServeHTTP(d, r)
+
+		if allow := d.header.Get("Allow"); allow != "" {
+			w.Header().Set("Allow", allow)
+		}
+		errorWriter(w, r, d.status, "")
+	})
+}
+
+// discardWriter records the headers and status a handler writes and
+// drops the body.
+type discardWriter struct {
+	header http.Header
+	status int
+}
+
+func (d *discardWriter) Header() http.Header { return d.header }
+
+func (d *discardWriter) Write(b []byte) (int, error) { return len(b), nil }
+
+func (d *discardWriter) WriteHeader(status int) { d.status = status }

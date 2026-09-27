@@ -46,6 +46,6 @@ bench:
 
 # Time-boxed; per-package fuzz targets, extended as packages gain fuzzers.
 fuzz:
-	@(cd httpx && go test -fuzz=FuzzRealIP -fuzztime=15s -run='^$$' ./middleware && go test -fuzz=FuzzTraceparent -fuzztime=15s -run='^$$' ./middleware)
+	@(cd httpx && go test -fuzz=FuzzRealIP -fuzztime=15s -run='^$$' ./middleware && go test -fuzz=FuzzTraceparent -fuzztime=15s -run='^$$' ./middleware && go test -fuzz=FuzzProblemMarshalJSON -fuzztime=15s -run='^$$' .)
 	@(cd logger && go test -fuzz=FuzzMaskString -fuzztime=15s -run='^$$' . && go test -fuzz=FuzzRedact -fuzztime=15s -run='^$$' .)
 	@(cd x/sshx/keys && go test -fuzz=FuzzParsePrivate -fuzztime=15s -run='^$$' . && go test -fuzz=FuzzGenerateComment -fuzztime=15s -run='^$$' .)

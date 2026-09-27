@@ -57,6 +57,29 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 
 Errors default to [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457): `{"type":"about:blank","title":"Bad Request","status":400,"detail":"..."}` — and services with their own error format swap it via `ErrorWriter`.
 
+A `Problem` carries extension members at the top level of the object (RFC 9457 §3.2), after the standard members and sorted by key; an extension named like a standard member is ignored. `ErrorMap.RespondRequest` adds request-scoped members to every problem it writes — Problemer, registry match, and the bare 500 — through one `Enrich` hook:
+
+```go
+errs := httpx.NewErrorMap()
+errs.Map(ErrOrderNotFound, httpx.Problem{Status: http.StatusNotFound})
+errs.Enrich = func(r *http.Request, p *httpx.Problem) {
+    p.Extensions["request_id"] = middleware.RequestIDFrom(r.Context()) // Extensions is always a private, non-nil map here
+}
+
+errs.RespondRequest(w, r, err) // {"type":"about:blank","title":"Not Found","status":404,"request_id":"..."}
+```
+
+Unmatched routes answer through the same writer when you opt in — `Config.ErrorWriter` turns ServeMux's plain-text `404 page not found` and `405 Method Not Allowed` into your error format, keeping the `Allow` header, and `Use` middleware still wraps them. Responses from matched routes, including a 404 your own handler writes, are never touched; left nil, ServeMux answers exactly as before:
+
+```go
+s := httpx.New(httpx.Config{
+    Addr: ":8080",
+    ErrorWriter: func(w http.ResponseWriter, _ *http.Request, status int, detail string) {
+        httpx.Error(w, status, detail)
+    },
+})
+```
+
 ### Using the middleware
 
 Middleware wires in canonical order — outermost first, so the logger sees the real client IP, the IDs, and the panic-turned-500 with its latency:
@@ -157,6 +180,8 @@ ok  	github.com/Wigata-Intech/w-tools/httpx/middleware	10.351s
 | Full canonical chain (RealIP → RequestID → Trace → Logger → Recover) | ~2,866 | 35 | Your whole production identity stack: ~3µs of overhead per request |
 
 The practical takeaway: the expensive thing in the stack is writing a log line, not the middleware machinery around it — and even the everything-on chain costs less than 0.3% of a 1ms handler.
+
+Opting into `Config.ErrorWriter` costs one extra ServeMux lookup per request: the server asks the mux whether a pattern matches before serving, so routing runs twice. Left nil, the server serves the mux directly and pays nothing.
 
 Under concurrency the chain stays in one band (~2.5–3.6µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~369 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
 
