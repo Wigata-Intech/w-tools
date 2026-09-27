@@ -116,12 +116,16 @@ func Command(open func(ctx context.Context, allowOutOfOrder bool) (*Migrator, er
 					}
 					for _, r := range rows {
 						mark, note := " ", ""
-						if r.Applied {
+						switch {
+						case r.Orphaned:
+							mark = "✓"
+							note = "orphaned: file missing"
+						case r.Applied:
 							mark = "✓"
 							if !r.AppliedAt.IsZero() {
 								note = r.AppliedAt.UTC().Format("2006-01-02 15:04:05")
 							}
-						} else if r.OutOfOrder {
+						case r.OutOfOrder:
 							note = "out of order"
 						}
 						_, _ = fmt.Fprintf(os.Stdout, "%s %d_%s %s\n", mark, r.Version, r.Name, note)
