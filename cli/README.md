@@ -67,7 +67,23 @@ var cfg Config
 // inside Flags: fs.Bind(&cfg)
 ```
 
-Every layer resolves into `cfg` before `Run` executes. A `required` field no layer supplied stops the process at startup — exit 2, naming the flag and its env var — never mid-request. `cli.LoadDotEnv(".env")` before `Execute` feeds a dotenv file into the environment layer (real environment wins), for bare-machine runs without an orchestrator.
+Every layer resolves into `cfg` before `Run` executes. A `required` field no layer supplied stops the process at startup — exit 2, naming the flag and its env var — never mid-request.
+
+Sectioned configs bind in one call — an untagged struct field is a section, and `Bind` recurses into it:
+
+```go
+type Config struct {
+	Log struct {
+		Level string `default:"info"` // --level
+	}
+	HTTP struct {
+		Addr    string         `cli:"http-addr" default:":8080"`
+		Trusted []netip.Prefix `cli:"trusted-proxies"` // 10.0.0.0/8, 192.168.0.0/16
+	}
+}
+```
+
+Sections only group: a flag is named by its leaf field alone, so `HTTP.Addr` above is `--http-addr`, `MY_SERVICE_HTTP_ADDR`, and the flat config key `"http-addr"` — exactly as a top-level field. Two sections naming one flag panic at boot like any duplicate. Tagged structs, pointers to structs, and types implementing `flag.Value` or `encoding.TextUnmarshaler` (`time.Time`) are leaves, never sections. `[]string` and `[]netip.Prefix` fields — and `fs.StringList`/`fs.PrefixList` for hand-declared flags — take comma-separated values: whitespace around entries is trimmed, a blank value is the empty list, and an empty or malformed entry fails startup with exit 2. `cli.LoadDotEnv(".env")` before `Execute` feeds a dotenv file into the environment layer (real environment wins), for bare-machine runs without an orchestrator.
 
 Secrets travel by env or `*_FILE`, never by flag (argv is world-readable via `ps`). Mark one with `fs.Secret("db-password")` and its default renders as `<secret>` in help while parse errors carry the flag name only — a credential never reaches stderr or CI logs.
 
@@ -137,7 +153,7 @@ Structural notes, honest ones:
 - JSON is the only built-in config format; YAML/TOML mean waiting for (or writing) a `Decoder`
 - No shell completion, no live config reload, no remote config — deliberate omissions, documented in the design, revisited only on evidence
 
-Fuzzing runs three contract targets — argv dispatch with the secret-leak invariant, the env-name binding proof, and the config decoder against a stdlib differential oracle:
+Fuzzing runs contract targets — argv dispatch with the secret-leak invariant, the env-name binding proof, the config decoder against a stdlib differential oracle, and the list flags against a mirror oracle:
 
 <details>
 <summary>Fuzzing — commands and raw output</summary>
@@ -146,6 +162,7 @@ Fuzzing runs three contract targets — argv dispatch with the secret-leak invar
 $ go test -run='^$' -fuzz=FuzzExecute -fuzztime=10s .
 $ go test -run='^$' -fuzz=FuzzEnvName -fuzztime=10s .
 $ go test -run='^$' -fuzz=FuzzDecodeJSON -fuzztime=10s .
+$ go test -run='^$' -fuzz=FuzzListFlags -fuzztime=10s .
 ```
 
 </details>

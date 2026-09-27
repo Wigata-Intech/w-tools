@@ -3,7 +3,9 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -225,6 +227,214 @@ func TestFlagSetMirrors(t *testing.T) {
 			}
 			if got != tt.expected {
 				t.Errorf("value = %q, expected %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+// flagsListInput is a list flag's default and the command line that
+// sets it.
+type flagsListInput[T any] struct {
+	def  []T
+	args []string
+}
+
+// flagsListExpected is the exit code and, on exit 0, the observed list
+// ("%v nil=%t"), otherwise stderr.
+type flagsListExpected struct {
+	code int
+	out  string
+}
+
+// flagsListRun declares a list flag via declare, executes with args, and
+// returns what flagsListExpected describes.
+func flagsListRun[T any](t *testing.T, declare func(fs *cli.FlagSet) *[]T, args []string) flagsListExpected {
+	t.Helper()
+	var p *[]T
+	var got string
+	root := &cli.Command{
+		Name:  "app",
+		Flags: func(fs *cli.FlagSet) { p = declare(fs) },
+		Run: func(context.Context, []string) error {
+			got = fmt.Sprintf("%v nil=%t", *p, *p == nil)
+			return nil
+		},
+	}
+	code, stderr := flagsRun(t, root, args)
+	if code != 0 {
+		return flagsListExpected{code: code, out: stderr}
+	}
+	return flagsListExpected{out: got}
+}
+
+func TestPrefixList(t *testing.T) {
+	def := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}
+	tests := []struct {
+		name     string
+		input    flagsListInput[netip.Prefix]
+		expected flagsListExpected
+	}{
+		{
+			name:     "default holds when unset",
+			input:    flagsListInput[netip.Prefix]{def: def},
+			expected: flagsListExpected{out: "[10.0.0.0/8] nil=false"},
+		},
+		{
+			name:     "blank value sets an empty non-nil list",
+			input:    flagsListInput[netip.Prefix]{def: def, args: []string{"-p", " "}},
+			expected: flagsListExpected{out: "[] nil=false"},
+		},
+		{
+			name:     "entries parse with surrounding whitespace trimmed",
+			input:    flagsListInput[netip.Prefix]{args: []string{"-p", " 10.0.0.0/8 , 2001:db8::/32"}},
+			expected: flagsListExpected{out: "[10.0.0.0/8 2001:db8::/32] nil=false"},
+		},
+		{
+			name:  "empty entry is rejected",
+			input: flagsListInput[netip.Prefix]{args: []string{"-p", "10.0.0.0/8,"}},
+			expected: flagsListExpected{
+				code: 2,
+				out:  "invalid value \"10.0.0.0/8,\" for flag -p: empty list entry\nRun 'app --help' for usage.\n",
+			},
+		},
+		{
+			name:  "one malformed entry rejects the whole value",
+			input: flagsListInput[netip.Prefix]{args: []string{"-p", "10.0.0.0/8,bad"}},
+			expected: flagsListExpected{
+				code: 2,
+				out:  "invalid value \"10.0.0.0/8,bad\" for flag -p: netip.ParsePrefix(\"bad\"): no '/'\nRun 'app --help' for usage.\n",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := flagsListRun(t, func(fs *cli.FlagSet) *[]netip.Prefix {
+				return fs.PrefixList("p", tt.input.def, "")
+			}, tt.input.args)
+			if got != tt.expected {
+				t.Errorf("got %+v, expected %+v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrefixListVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    flagsListInput[netip.Prefix]
+		expected flagsListExpected
+	}{
+		{
+			name:     "default stored in the variable",
+			input:    flagsListInput[netip.Prefix]{def: []netip.Prefix{netip.MustParsePrefix("::1/128")}},
+			expected: flagsListExpected{out: "[::1/128] nil=false"},
+		},
+		{
+			name:     "command line replaces the default",
+			input:    flagsListInput[netip.Prefix]{args: []string{"-p", "192.168.0.0/16"}},
+			expected: flagsListExpected{out: "[192.168.0.0/16] nil=false"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := flagsListRun(t, func(fs *cli.FlagSet) *[]netip.Prefix {
+				var v []netip.Prefix
+				fs.PrefixListVar(&v, "p", tt.input.def, "")
+				return &v
+			}, tt.input.args)
+			if got != tt.expected {
+				t.Errorf("got %+v, expected %+v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestStringList(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    flagsListInput[string]
+		expected flagsListExpected
+	}{
+		{
+			name:     "default holds when unset",
+			input:    flagsListInput[string]{def: []string{"x"}},
+			expected: flagsListExpected{out: "[x] nil=false"},
+		},
+		{
+			name:     "blank value sets an empty non-nil list",
+			input:    flagsListInput[string]{def: []string{"x"}, args: []string{"-l", "  "}},
+			expected: flagsListExpected{out: "[] nil=false"},
+		},
+		{
+			name:     "entries split on commas with surrounding whitespace trimmed",
+			input:    flagsListInput[string]{args: []string{"-l", " a , b ,c"}},
+			expected: flagsListExpected{out: "[a b c] nil=false"},
+		},
+		{
+			name:     "interior whitespace is kept",
+			input:    flagsListInput[string]{args: []string{"-l", "a  b,c"}},
+			expected: flagsListExpected{out: "[a  b c] nil=false"},
+		},
+		{
+			name:     "repeated flag keeps the last value",
+			input:    flagsListInput[string]{args: []string{"-l", "a,b", "-l", "c"}},
+			expected: flagsListExpected{out: "[c] nil=false"},
+		},
+		{
+			name:  "empty entry is rejected",
+			input: flagsListInput[string]{args: []string{"-l", "a,,b"}},
+			expected: flagsListExpected{
+				code: 2,
+				out:  "invalid value \"a,,b\" for flag -l: empty list entry\nRun 'app --help' for usage.\n",
+			},
+		},
+		{
+			name:  "trailing comma is rejected",
+			input: flagsListInput[string]{args: []string{"-l", "a,"}},
+			expected: flagsListExpected{
+				code: 2,
+				out:  "invalid value \"a,\" for flag -l: empty list entry\nRun 'app --help' for usage.\n",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := flagsListRun(t, func(fs *cli.FlagSet) *[]string {
+				return fs.StringList("l", tt.input.def, "")
+			}, tt.input.args)
+			if got != tt.expected {
+				t.Errorf("got %+v, expected %+v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestStringListVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    flagsListInput[string]
+		expected flagsListExpected
+	}{
+		{
+			name:     "default stored in the variable",
+			input:    flagsListInput[string]{def: []string{"a", "b"}},
+			expected: flagsListExpected{out: "[a b] nil=false"},
+		},
+		{
+			name:     "command line replaces the default",
+			input:    flagsListInput[string]{def: []string{"a"}, args: []string{"-l", "c"}},
+			expected: flagsListExpected{out: "[c] nil=false"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := flagsListRun(t, func(fs *cli.FlagSet) *[]string {
+				var v []string
+				fs.StringListVar(&v, "l", tt.input.def, "")
+				return &v
+			}, tt.input.args)
+			if got != tt.expected {
+				t.Errorf("got %+v, expected %+v", got, tt.expected)
 			}
 		})
 	}

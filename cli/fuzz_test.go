@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"unicode"
@@ -296,6 +298,99 @@ func FuzzExecute(f *testing.F) {
 			if strings.Contains(output, sv.v) {
 				t.Fatalf("secret value %q leaked into output (args %q):\n%s", sv.v, args, output)
 			}
+		}
+	})
+}
+
+// fuzzListMirror reimplements the documented list syntax as the oracle
+// FuzzListFlags compares against: a blank value is the empty list,
+// otherwise comma-separated entries with surrounding whitespace trimmed —
+// nil when any entry is empty.
+func fuzzListMirror(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return []string{}
+	}
+	var entries []string
+	for entry := range strings.SplitSeq(s, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			return nil
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+// fuzzListRun executes a root declaring one list flag via declare with
+// the single argument arg, and returns the exit code.
+func fuzzListRun(t *testing.T, declare func(fs *cli.FlagSet), arg string) int {
+	t.Helper()
+	root := &cli.Command{
+		Name:  "app",
+		Flags: declare,
+		Run:   func(context.Context, []string) error { return nil },
+	}
+	cli.SetIO(root, io.Discard, io.Discard)
+	return cli.ExecuteArgs(context.Background(), root, []string{arg})
+}
+
+// FuzzListFlags feeds arbitrary values to StringList and PrefixList
+// against the mirror oracle: no input may panic, the exit code is 0
+// exactly when the oracle accepts every entry, the parsed entries match
+// the oracle's, and a parsed PrefixList's rendered form parses back to
+// the same prefixes.
+func FuzzListFlags(f *testing.F) {
+	f.Add("10.0.0.0/8, 192.168.0.0/16")
+	f.Add("2001:db8::/32,::1/128")
+	f.Add("")
+	f.Add("  ")
+	f.Add("a,,b")
+	f.Add("10.0.0.0/8,bad")
+	f.Add("10.0.0.1/8")
+	f.Add("::ffff:10.0.0.1/104")
+	f.Fuzz(func(t *testing.T, value string) {
+		expected := fuzzListMirror(value)
+
+		var strs []string
+		code := fuzzListRun(t, func(fs *cli.FlagSet) { fs.StringListVar(&strs, "l", nil, "") }, "-l="+value)
+		if (code == 0) != (expected != nil) {
+			t.Fatalf("StringList exit code = %d, mirror accepts = %t (value %q)", code, expected != nil, value)
+		}
+		if code == 0 && !slices.Equal(strs, expected) {
+			t.Fatalf("StringList = %q, mirror %q (value %q)", strs, expected, value)
+		}
+
+		accepts := expected != nil
+		wantPrefixes := make([]netip.Prefix, 0, len(expected))
+		for _, entry := range expected {
+			p, err := netip.ParsePrefix(entry)
+			if err != nil {
+				accepts = false
+				break
+			}
+			wantPrefixes = append(wantPrefixes, p)
+		}
+		var prefixes []netip.Prefix
+		code = fuzzListRun(t, func(fs *cli.FlagSet) { fs.PrefixListVar(&prefixes, "p", nil, "") }, "-p="+value)
+		if (code == 0) != accepts {
+			t.Fatalf("PrefixList exit code = %d, mirror accepts = %t (value %q)", code, accepts, value)
+		}
+		if code != 0 {
+			return
+		}
+		if !slices.Equal(prefixes, wantPrefixes) {
+			t.Fatalf("PrefixList = %v, mirror %v (value %q)", prefixes, wantPrefixes, value)
+		}
+
+		rendered := make([]string, len(prefixes))
+		for i, p := range prefixes {
+			rendered[i] = p.String()
+		}
+		var again []netip.Prefix
+		code = fuzzListRun(t, func(fs *cli.FlagSet) { fs.PrefixListVar(&again, "p", nil, "") },
+			"-p="+strings.Join(rendered, ","))
+		if code != 0 || !slices.Equal(again, prefixes) {
+			t.Fatalf("round trip of %v: exit code %d, got %v", prefixes, code, again)
 		}
 	})
 }
