@@ -60,8 +60,7 @@ func IsAuthFailure(err error) bool {
 	if err == nil {
 		return false
 	}
-	var de *DialError
-	if errors.As(err, &de) {
+	if de, ok := errors.AsType[*DialError](err); ok {
 		if de.Stage != StageHandshake {
 			return false
 		}

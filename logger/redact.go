@@ -272,8 +272,7 @@ func (h *redactHandler) plan(t reflect.Type) []fieldPlan {
 		}
 	}
 	fields := make([]fieldPlan, 0, t.NumField())
-	for i := range t.NumField() {
-		f := t.Field(i)
+	for f := range t.Fields() {
 		if !f.IsExported() {
 			continue
 		}

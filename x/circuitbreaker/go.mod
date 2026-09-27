@@ -1,3 +1,3 @@
 module github.com/Wigata-Intech/w-tools/x/circuitbreaker
 
-go 1.23.12
+go 1.26.8

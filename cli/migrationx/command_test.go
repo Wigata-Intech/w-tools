@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"io"
 	"log/slog"
 	"maps"
 	"os"
@@ -29,7 +28,7 @@ func cmdRoot(t *testing.T, files map[string]string) (*cli.Command, *fakeState) {
 		return migrationx.New(db, fsys, migrationx.Config{ //nolint:contextcheck // New has no ctx parameter; bootstrap uses its own
 			Dialect:         migrationx.DialectSQLite,
 			AllowOutOfOrder: allowOOO,
-			Log:             slog.New(slog.NewTextHandler(io.Discard, nil)),
+			Log:             slog.New(slog.DiscardHandler),
 		})
 	}
 	root := &cli.Command{Name: "app", Commands: []*cli.Command{migrationx.Command(open)}}

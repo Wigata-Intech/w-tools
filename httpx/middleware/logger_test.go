@@ -396,13 +396,11 @@ func TestLogger(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for range 8 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/x", strings.NewReader(`{"n":1}`))
 				req.Header.Set("Content-Type", "application/json")
 				h.ServeHTTP(httptest.NewRecorder(), req)
-			}()
+			})
 		}
 		wg.Wait()
 	})

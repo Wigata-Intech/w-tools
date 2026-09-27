@@ -15,7 +15,7 @@ go get github.com/Wigata-Intech/w-tools/logger
 - One call to a working logger: JSON output, your service's identity (`env`, `version`, `app`, `protocol`) on every line, level from config
 - Redaction that can't be forgotten: keys you name are replaced or partially masked wherever they appear — top level, nested, or inside a struct someone passed whole
 - Everything is still just slog: `Debug`/`Info`/`Warn`/`Error`/`Panic` with slog's own key-value args; your existing slog knowledge, attrs, and tooling all still work
-- Zero dependencies, permanently — the `go.mod` requires Go 1.23.12 and nothing else
+- Zero dependencies, permanently — the `go.mod` requires Go 1.26.8 and nothing else
 
 ## What problem this solves
 

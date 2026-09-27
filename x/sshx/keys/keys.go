@@ -25,8 +25,7 @@ type PassphraseFunc func(path string) ([]byte, error)
 func ParsePrivate(pemBytes []byte) (ssh.Signer, error) {
 	signer, err := ssh.ParsePrivateKey(pemBytes)
 	if err != nil {
-		var missing *ssh.PassphraseMissingError
-		if errors.As(err, &missing) {
+		if _, ok := errors.AsType[*ssh.PassphraseMissingError](err); ok {
 			return nil, fmt.Errorf("%w: %w", ErrPassphraseRequired, err)
 		}
 		return nil, err

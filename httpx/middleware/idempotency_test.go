@@ -604,11 +604,9 @@ func testIdempotencyConcurrentIdenticalRequestsExecuteTheHandlerOnce(t *testing.
 	codes := make([]int, n)
 	var wg sync.WaitGroup
 	for i := range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			codes[i] = idemRequest(handler, http.MethodPost, "/orders", "k-15", `{}`).Code
-		}()
+		})
 	}
 	wg.Wait()
 

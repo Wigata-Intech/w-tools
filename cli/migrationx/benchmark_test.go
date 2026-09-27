@@ -44,7 +44,7 @@ func BenchmarkLoad(b *testing.B) {
 		fsys[down] = &fstest.MapFile{Data: []byte("DROP TABLE t;")}
 	}
 	db, _ := fakeDB(b)
-	cfg := migrationx.Config{Dialect: migrationx.DialectSQLite, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	cfg := migrationx.Config{Dialect: migrationx.DialectSQLite, Log: slog.New(slog.NewTextHandler(io.Discard, nil))} //nolint:sloglint // the published numbers were measured with a real handler
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
@@ -63,7 +63,7 @@ func BenchmarkUpTen(b *testing.B) {
 		name := fmt.Sprintf("%d_m%d.up.sql", 1000+i, i)
 		fsys[name] = &fstest.MapFile{Data: []byte("CREATE TABLE t (x INTEGER);")}
 	}
-	cfg := migrationx.Config{Dialect: migrationx.DialectSQLite, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	cfg := migrationx.Config{Dialect: migrationx.DialectSQLite, Log: slog.New(slog.NewTextHandler(io.Discard, nil))} //nolint:sloglint // the published numbers were measured with a real handler
 	ctx := context.Background()
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -7,8 +7,9 @@ linters:
   disable:
     # Needs an import-allowlist config to do anything; zero-dependency is already repo law, enforced in review.
     - depguard
-    # Forces every struct field to be set explicitly — fights the zero-value Config ergonomics slog-style APIs rely on.
+    # Forces every struct field to be set explicitly — fights the zero-value Config ergonomics slog-style APIs rely on. exhaustruct was renamed exhaustruct_v5 in golangci v2.13.
     - exhaustruct
+    - exhaustruct_v5
     # Bans short identifiers; idiomatic Go uses them (i, b, tt).
     - varnamelen
     # Whitespace/blank-line opinions that fight house formatting. wsl was renamed wsl_v5 in golangci v2.12.

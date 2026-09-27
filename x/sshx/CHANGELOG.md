@@ -4,6 +4,15 @@ All notable changes to `x/sshx` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+### Changed
+
+- Minimum Go version raised to 1.26.8 (`go.mod` directive); Go 1.25 and earlier are out of upstream support, and `golang.org/x/crypto` v0.56.0+ requires Go 1.26
+- `golang.org/x/crypto` v0.55.0 → v0.57.0 (`golang.org/x/sys` v0.47.0 → v0.48.0)
+
+### Security
+
+- Fixes GO-2026-6354 and GO-2026-6355 (DoS on deadlocked SSH channels, reachable via `ssh.NewClientConn` in `sshx`'s dial path) by upgrading `golang.org/x/crypto`
+
 ## [0.1.1] - 2026-08-15
 
 ### Added

@@ -201,8 +201,7 @@ func TestWait(t *testing.T) {
 		cancel()
 		select {
 		case err := <-done:
-			var missing *ssh.ExitMissingError
-			if !errors.As(err, &missing) {
+			if _, ok := errors.AsType[*ssh.ExitMissingError](err); !ok {
 				t.Errorf("Wait() error = %v, want *ssh.ExitMissingError", err)
 			}
 		case <-time.After(5 * time.Second):

@@ -72,8 +72,7 @@ func exitCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	var exit *ssh.ExitError
-	if errors.As(err, &exit) {
+	if exit, ok := errors.AsType[*ssh.ExitError](err); ok {
 		return exit.ExitStatus()
 	}
 	return -1

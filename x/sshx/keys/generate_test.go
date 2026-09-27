@@ -1,3 +1,8 @@
+// cryptocustomrand=1 keeps the injected entropy reader honored by crypto/rsa
+// on Go 1.26+, so TestGenerateEntropyFailure can drive the RSA failure path.
+//
+//go:debug cryptocustomrand=1
+
 package keys_test
 
 import (

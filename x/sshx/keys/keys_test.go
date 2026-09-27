@@ -49,8 +49,7 @@ func (e parseExpect) check(t *testing.T, signer ssh.Signer, err error) {
 		t.Fatalf("err = %q, want %q", err.Error(), e.errMsg)
 	}
 	if e.passphraseMissing {
-		var missing *ssh.PassphraseMissingError
-		if !errors.As(err, &missing) {
+		if _, ok := errors.AsType[*ssh.PassphraseMissingError](err); !ok {
 			t.Fatalf("errors.As(err, **ssh.PassphraseMissingError) is false, err = %v", err)
 		}
 	}
