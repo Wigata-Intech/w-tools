@@ -648,6 +648,42 @@ func TestUpTo(t *testing.T) {
 			}, tt.expected)
 		})
 	}
+
+	t.Run("warns when the target matches no known version", func(t *testing.T) {
+		var buf bytes.Buffer
+		db, _ := fakeDB(t)
+		m, err := migrationx.New(db, mxFS(files), migrationx.Config{
+			Dialect: migrationx.DialectSQLite,
+			Log:     slog.New(slog.NewTextHandler(&buf, nil)),
+		})
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if err := m.UpTo(context.Background(), 250); err != nil {
+			t.Fatalf("UpTo() error = %v", err)
+		}
+		if !strings.Contains(buf.String(), `msg="migration target version not found on the filesystem" version=250`) {
+			t.Errorf("log = %q, want a warning for version 250", buf.String())
+		}
+	})
+
+	t.Run("does not warn when the target matches a known version", func(t *testing.T) {
+		var buf bytes.Buffer
+		db, _ := fakeDB(t)
+		m, err := migrationx.New(db, mxFS(files), migrationx.Config{
+			Dialect: migrationx.DialectSQLite,
+			Log:     slog.New(slog.NewTextHandler(&buf, nil)),
+		})
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if err := m.UpTo(context.Background(), 200); err != nil {
+			t.Fatalf("UpTo() error = %v", err)
+		}
+		if strings.Contains(buf.String(), "migration target version not found") {
+			t.Errorf("log = %q, want no warning", buf.String())
+		}
+	})
 }
 
 func TestDown(t *testing.T) {
@@ -888,6 +924,46 @@ func TestDownTo(t *testing.T) {
 			}, tt.expected)
 		})
 	}
+
+	t.Run("warns when the target matches no known version", func(t *testing.T) {
+		var buf bytes.Buffer
+		db, state := fakeDB(t)
+		seedAll(state)
+		m, err := migrationx.New(db, mxFS(files), migrationx.Config{
+			Dialect: migrationx.DialectSQLite,
+			Log:     slog.New(slog.NewTextHandler(&buf, nil)),
+		})
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if err := m.DownTo(context.Background(), 250); err != nil {
+			t.Fatalf("DownTo() error = %v", err)
+		}
+		if !strings.Contains(buf.String(), `msg="migration target version not found on the filesystem" version=250`) {
+			t.Errorf("log = %q, want a warning for version 250", buf.String())
+		}
+	})
+
+	t.Run("does not warn for a known version or the roll-back-everything sentinel", func(t *testing.T) {
+		for _, version := range []int64{0, 200} {
+			var buf bytes.Buffer
+			db, state := fakeDB(t)
+			seedAll(state)
+			m, err := migrationx.New(db, mxFS(files), migrationx.Config{
+				Dialect: migrationx.DialectSQLite,
+				Log:     slog.New(slog.NewTextHandler(&buf, nil)),
+			})
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			if err := m.DownTo(context.Background(), version); err != nil {
+				t.Fatalf("DownTo(%d) error = %v", version, err)
+			}
+			if strings.Contains(buf.String(), "migration target version not found") {
+				t.Errorf("DownTo(%d) log = %q, want no warning", version, buf.String())
+			}
+		}
+	})
 }
 
 func TestStatus(t *testing.T) {
@@ -953,6 +1029,22 @@ func TestStatus(t *testing.T) {
 			},
 		},
 		{
+			name: "orphan applied row surfaces instead of failing",
+			input: mxInput{
+				dialect: migrationx.DialectSQLite,
+				files:   map[string]string{"100_a.up.sql": mxUpA},
+				seed: func(s *fakeState) {
+					s.setApplied(999, "ghost", "cafe", mxSeededAt)
+				},
+			},
+			expected: expected{
+				rows: []migrationx.Migration{
+					{Version: 100, Name: "a"},
+					{Version: 999, Name: "ghost", Applied: true, AppliedAt: mxT0900, Orphaned: true},
+				},
+			},
+		},
+		{
 			name: "closed database",
 			input: mxInput{
 				dialect: migrationx.DialectSQLite,
@@ -982,17 +1074,6 @@ func TestStatus(t *testing.T) {
 			expected: expected{
 				err: "migrationx: applied migration changed on disk: 100_a: recorded deadbeef, file " + mxChecksum(mxUpA),
 			},
-		},
-		{
-			name: "orphan applied row fails closed",
-			input: mxInput{
-				dialect: migrationx.DialectSQLite,
-				files:   map[string]string{"100_a.up.sql": mxUpA},
-				seed: func(s *fakeState) {
-					s.setApplied(999, "ghost", "cafe", mxSeededAt)
-				},
-			},
-			expected: expected{err: "migrationx: applied migration missing from the filesystem: 999_ghost"},
 		},
 	}
 	for _, tt := range tests {

@@ -1,6 +1,7 @@
 package migrationx
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -58,7 +59,8 @@ type Migration struct {
 	Name       string
 	Applied    bool
 	AppliedAt  time.Time // zero when not applied, or when the stored value was unreadable
-	OutOfOrder bool      // pending and older than the newest applied
+	OutOfOrder bool      // pending and older than the newest applied migration still present on the filesystem
+	Orphaned   bool      // applied but its migration file is missing from the filesystem
 }
 
 // Migrator applies, rolls back, and reports migrations. Create one with
@@ -143,6 +145,9 @@ func (m *Migrator) UpByOne(ctx context.Context) error {
 
 // UpTo applies pending migrations up to and including version.
 func (m *Migrator) UpTo(ctx context.Context, version int64) error {
+	if version > 0 {
+		m.warnUnknownVersion(ctx, version)
+	}
 	return m.up(ctx, 0, version)
 }
 
@@ -155,11 +160,20 @@ func (m *Migrator) Down(ctx context.Context) error {
 // version, highest first; DownTo(ctx, 0) rolls back everything. Negative
 // versions are treated as 0.
 func (m *Migrator) DownTo(ctx context.Context, version int64) error {
+	if version > 0 {
+		m.warnUnknownVersion(ctx, version)
+	}
 	return m.down(ctx, max(version, 0))
 }
 
 // Status reports every migration the filesystem or the history table
-// knows, in version order. It takes no lock.
+// knows, in version order. An applied migration whose file is missing is
+// reported with Orphaned set instead of failing the call — Up, Down, and
+// Version still fail closed on the same condition via verify. A checksum
+// mismatch still fails the call, though: the row exists on both sides, so
+// there is no honest single Migration to render for it, and drift between
+// what ran and what's on disk is the more dangerous state — orphans are
+// reported inline, checksum mismatches fail closed. It takes no lock.
 func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 	conn, err := m.db.Conn(ctx)
 	if err != nil {
@@ -171,13 +185,16 @@ func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := m.verify(applied); err != nil {
+	if err := m.verifyChecksums(applied); err != nil {
 		return nil, err
 	}
 
+	byVersion := m.migrationsByVersion()
 	var maxApplied int64
 	for version := range applied {
-		maxApplied = max(maxApplied, version)
+		if _, ok := byVersion[version]; ok {
+			maxApplied = max(maxApplied, version)
+		}
 	}
 
 	out := make([]Migration, 0, len(m.migrations))
@@ -191,6 +208,19 @@ func (m *Migrator) Status(ctx context.Context) ([]Migration, error) {
 		}
 		out = append(out, entry)
 	}
+	for version, row := range applied {
+		if _, ok := byVersion[version]; ok {
+			continue
+		}
+		out = append(out, Migration{
+			Version:   version,
+			Name:      row.name,
+			Applied:   true,
+			AppliedAt: row.appliedAt,
+			Orphaned:  true,
+		})
+	}
+	slices.SortFunc(out, func(a, b Migration) int { return cmp.Compare(a.Version, b.Version) })
 	return out, nil
 }
 
@@ -353,16 +383,30 @@ func (m *Migrator) appliedRows(ctx context.Context, conn *sql.Conn) (map[int64]a
 }
 
 // verify fails closed on the two history incidents: an applied migration
-// whose file changed, and an applied migration whose file is gone.
+// whose file changed, and an applied migration whose file is gone. Status
+// calls verifyChecksums alone, so the orphan case surfaces in its report
+// instead of failing the call.
 func (m *Migrator) verify(applied map[int64]appliedRow) error {
-	byVersion := map[int64]migration{}
-	for _, mig := range m.migrations {
-		byVersion[mig.version] = mig
+	if err := m.verifyChecksums(applied); err != nil {
+		return err
 	}
+	byVersion := m.migrationsByVersion()
+	for version, row := range applied {
+		if _, ok := byVersion[version]; !ok {
+			return fmt.Errorf("%w: %d_%s", errOrphan, version, row.name)
+		}
+	}
+	return nil
+}
+
+// verifyChecksums fails closed on an applied migration whose file changed
+// on disk.
+func (m *Migrator) verifyChecksums(applied map[int64]appliedRow) error {
+	byVersion := m.migrationsByVersion()
 	for version, row := range applied {
 		mig, ok := byVersion[version]
 		if !ok {
-			return fmt.Errorf("%w: %d_%s", errOrphan, version, row.name)
+			continue
 		}
 		if mig.checksum != row.checksum {
 			return fmt.Errorf("%w: %d_%s: recorded %s, file %s",
@@ -370,6 +414,25 @@ func (m *Migrator) verify(applied map[int64]appliedRow) error {
 		}
 	}
 	return nil
+}
+
+// migrationsByVersion indexes the loaded migrations by version.
+func (m *Migrator) migrationsByVersion() map[int64]migration {
+	byVersion := make(map[int64]migration, len(m.migrations))
+	for _, mig := range m.migrations {
+		byVersion[mig.version] = mig
+	}
+	return byVersion
+}
+
+// warnUnknownVersion logs when version matches no migration on the
+// filesystem — UpTo and DownTo otherwise apply silently against the
+// nearest bound, which reads as success on an operator's typo'd version.
+func (m *Migrator) warnUnknownVersion(ctx context.Context, version int64) {
+	if _, ok := m.migrationsByVersion()[version]; ok {
+		return
+	}
+	m.log.WarnContext(ctx, "migration target version not found on the filesystem", "version", version)
 }
 
 // apply runs one up migration and records it, transactionally where the
