@@ -5,6 +5,8 @@
 //
 // Migrations are pairs of files named <unix-timestamp>_<name>.up.sql and
 // .down.sql, minted by Create and shipped via embed.FS or a directory.
+// Merge combines several sources — a service's own migrations and those
+// its libraries embed — into one timeline for New.
 // The engine runs on the consumer's *sql.DB against sqlite or mysql.
 //
 // Every mutating run verifies before it acts, and ambiguity aborts:
