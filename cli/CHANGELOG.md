@@ -13,6 +13,10 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 - `migrationx`: `Migration` gains an `Orphaned` field; `Status` now reports an applied migration whose file is missing from the filesystem with `Orphaned` set instead of failing the call — `Up`, `Down`, and `Version` still fail closed on the same condition
 - Minimum Go version raised to 1.26.8 (`go.mod` directive); Go 1.25 and earlier are out of upstream support
 
+### Fixed
+
+- `migrationx`: the mysql migration lock is scoped to `DATABASE()` — two databases on the same MySQL server using the same history table name no longer serialize against each other; a consumer relying on that cross-database serialization gets different locking behavior
+
 ## [0.1.0] - 2026-08-14
 
 ### Added
