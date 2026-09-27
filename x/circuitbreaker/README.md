@@ -49,10 +49,11 @@ Failure classification stays with the caller: `Record(err)` counts nil as succes
 
 ## What it costs
 
-`Allow`+`Record` closed path, one shared breaker. Read the parallel rows as a traffic curve — every caller hammering the same mutex. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+`Allow`+`Record` closed path, one shared breaker. Read the parallel rows as a traffic curve — every caller hammering the same mutex. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 27.0, go1.26.8.
 
 ```bash
 cd x/circuitbreaker && go test -run='^$' -bench=. -benchmem ./...
+go test -run='^$' -bench=Parallel -cpu 1,2,4,8 -benchmem .
 ```
 
 <details>
@@ -63,9 +64,20 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/x/circuitbreaker
 cpu: Apple M2 Pro
-BenchmarkAllowRecord-10            	18608990	        55.38 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllowRecordParallel-10    	 4629283	       262.7 ns/op	       0 B/op	       0 allocs/op
-ok  	github.com/Wigata-Intech/w-tools/x/circuitbreaker	2.941s
+BenchmarkAllowRecord-10            	21693901	        54.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllowRecordParallel-10    	 4617474	       262.9 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Wigata-Intech/w-tools/x/circuitbreaker	2.998s
+goos: darwin
+goarch: arm64
+pkg: github.com/Wigata-Intech/w-tools/x/circuitbreaker
+cpu: Apple M2 Pro
+BenchmarkAllowRecordParallel     	21881770	        53.68 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllowRecordParallel-2   	10123292	       121.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllowRecordParallel-4   	 5221560	       225.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllowRecordParallel-8   	 4613431	       271.9 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Wigata-Intech/w-tools/x/circuitbreaker	5.770s
 ```
 
 </details>
@@ -73,9 +85,9 @@ ok  	github.com/Wigata-Intech/w-tools/x/circuitbreaker	2.941s
 | Situation | ns/op | allocs/op | Meaning for you |
 | --------- | ----- | --------- | --------------- |
 | Single caller | ~55 | 0 | The floor: a mutex over integer math |
-| 2 concurrent callers | ~123 | 0 | Contention appears — still sub-microsecond |
-| 4 concurrent callers | ~219 | 0 | ~4.5M guarded calls/sec through one breaker |
-| 8 concurrent callers | ~263 | 0 | Contention flattens: ~3.8M calls/sec, zero allocations throughout |
+| 2 concurrent callers | ~121 | 0 | Contention appears — still sub-microsecond |
+| 4 concurrent callers | ~226 | 0 | ~4.4M guarded calls/sec through one breaker |
+| 8 concurrent callers | ~272 | 0 | Contention flattens: ~3.7M calls/sec, zero allocations throughout |
 
 The takeaway: even at the worst measured contention, the breaker adds a quarter of a microsecond to calls that cost milliseconds on the network — three to four orders of magnitude below the thing it guards. Zero allocations at every level means no GC pressure, ever. Memory is fixed at construction: one ring of `WindowBuckets` counters, no goroutines, no timers.
 

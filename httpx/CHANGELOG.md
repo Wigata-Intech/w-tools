@@ -4,6 +4,8 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-28
+
 ### Changed
 
 - Minimum Go version raised to 1.26.8 (`go.mod` directive); Go 1.25 and earlier are out of upstream support

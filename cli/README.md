@@ -90,7 +90,7 @@ The file format, annotations, standalone use, and operational rules: [migrationx
 
 ## What it costs
 
-Everything happens once at process start — there is no hot path. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+Everything happens once at process start — there is no hot path. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 27.0, go1.26.8.
 
 ```bash
 cd cli && go test -run='^$' -bench=. -benchmem ./...
@@ -104,25 +104,27 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/cli
 cpu: Apple M2 Pro
-BenchmarkExecute-10                	  408525	      3522 ns/op	    4488 B/op	      69 allocs/op
-BenchmarkExecuteEnvAndConfig-10    	   62565	     20526 ns/op	    7320 B/op	      95 allocs/op
-ok  	github.com/Wigata-Intech/w-tools/cli	4.122s
+BenchmarkExecute-10                	  361466	      2847 ns/op	    4488 B/op	      69 allocs/op
+BenchmarkExecuteEnvAndConfig-10    	   59241	     20252 ns/op	    7320 B/op	      95 allocs/op
+PASS
+ok  	github.com/Wigata-Intech/w-tools/cli	2.710s
 goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/cli/migrationx
 cpu: Apple M2 Pro
-BenchmarkParseScript-10    	   25544	     44449 ns/op	   42320 B/op	     509 allocs/op
-BenchmarkLoad-10           	    5846	    188436 ns/op	  130206 B/op	    3443 allocs/op
-BenchmarkUpTen-10          	   23616	     48176 ns/op	   38018 B/op	     557 allocs/op
-ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	5.953s
+BenchmarkParseScript-10    	   29581	     37752 ns/op	   42320 B/op	     509 allocs/op
+BenchmarkLoad-10           	    6304	    183409 ns/op	  130201 B/op	    3443 allocs/op
+BenchmarkUpTen-10          	   25263	     47847 ns/op	   40046 B/op	     562 allocs/op
+PASS
+ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	4.708s
 ```
 
 </details>
 
 | Measure | Result |
 | ------- | ------ |
-| Full dispatch (subcommand + flag), `BenchmarkExecute` | ~3.5 µs, 69 allocs — once per process |
-| Every layer active (env + config file read/decoded), `BenchmarkExecuteEnvAndConfig` | ~21 µs, 95 allocs — once per process |
+| Full dispatch (subcommand + flag), `BenchmarkExecute` | ~2.8 µs, 69 allocs — once per process |
+| Every layer active (env + config file read/decoded), `BenchmarkExecuteEnvAndConfig` | ~20 µs, 95 allocs — once per process |
 | Binary size: hello-world `main` | 1.6 MB (`-trimpath -ldflags "-s -w"`) |
 | the same `main` on **cli** | 2.1 MB — **+0.5 MB** |
 | the same `main` on cobra + viper | 4.7 MB — **+3.1 MB**, 6× the cli delta |

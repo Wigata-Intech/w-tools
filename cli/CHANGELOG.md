@@ -4,6 +4,8 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-28
+
 ### Added
 
 - `migrationx`: `UpTo`/`DownTo` log a warning when the given version matches no migration on the filesystem, instead of silently applying against the nearest bound

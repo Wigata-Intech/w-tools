@@ -2,7 +2,7 @@
 
 > Persistent SSH connections that manage themselves — dial once, run many, heal on failure.
 
-**Status: experimental, under `x/`, at `v0.1.1`.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Nothing at the w-tools root depends on it — never build anything load-bearing on an `x/` package. Graduation to the root, under a new import path, is the only way it earns stability.
+**Status: experimental, under `x/`, at `v0.2.0`.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Nothing at the w-tools root depends on it — never build anything load-bearing on an `x/` package. Graduation to the root, under a new import path, is the only way it earns stability.
 
 ## TL;DR
 
@@ -90,7 +90,7 @@ $ go test -run='^$' -fuzz=FuzzGenerateComment -fuzztime=30s .
 
 ## What it costs
 
-Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6, against an in-process SSH server on loopback:
+Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 27.0, go1.26.8, against an in-process SSH server on loopback:
 
 ```bash
 cd x/sshx && go test -run='^$' -bench=. -benchmem .
@@ -104,20 +104,20 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/x/sshx
 cpu: Apple M2 Pro
-BenchmarkManagedCombinedOutput-10       6848      169520 ns/op     71600 B/op      138 allocs/op
-BenchmarkPoolColdStart-10                265     5118863 ns/op   1468634 B/op     9103 allocs/op
-BenchmarkClientCombinedOutput-10        7852      136943 ns/op     71568 B/op      138 allocs/op
+BenchmarkManagedCombinedOutput-10    	   11106	    107425 ns/op	   71589 B/op	     138 allocs/op
+BenchmarkPoolColdStart-10            	     307	   3972103 ns/op	 1468093 B/op	    9099 allocs/op
+BenchmarkClientCombinedOutput-10     	   10000	    110506 ns/op	   71567 B/op	     138 allocs/op
 PASS
-ok      github.com/Wigata-Intech/w-tools/x/sshx 3.996s
+ok  	github.com/Wigata-Intech/w-tools/x/sshx	3.778s
 ```
 
 </details>
 
 | Situation | Cost | Meaning for you |
 | --------- | ---- | --------------- |
-| One command, bare `Client` | ~140µs, 138 allocs | The floor: a full SSH channel open→exec→close round-trip on the multiplexed transport — protocol, not overhead added here |
-| One command, pooled `Managed` | ~170µs, 138 allocs | The self-healing wrapper adds a mutex acquisition and error classification — identical allocations, round-trip dominated |
-| 16-host fleet, cold start to all-Ready | ~5ms total | Sixteen full handshakes through the shared dial semaphore |
+| One command, bare `Client` | ~110µs, 138 allocs | The floor: a full SSH channel open→exec→close round-trip on the multiplexed transport — protocol, not overhead added here |
+| One command, pooled `Managed` | ~110µs, 138 allocs | The self-healing wrapper's mutex acquisition and error classification vanish into the round-trip — parity within noise, identical allocations |
+| 16-host fleet, cold start to all-Ready | ~4ms total | Sixteen full handshakes through the shared dial semaphore |
 
 Structural costs: one background goroutine per live connection (keepalive) plus one per `Managed` (maintenance loop), both exiting on close; and the module requires Go 1.26.8+ with `golang.org/x/crypto` — the one dependency this repo's policy admits, scoped to `x/` modules implementing a protocol the standard library doesn't.
 

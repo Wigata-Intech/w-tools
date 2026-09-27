@@ -109,7 +109,7 @@ Because there's no lock-in in either direction: anything written for `net/http` 
 
 ## What it costs
 
-Read it as a price list. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+Read it as a price list. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 27.0, go1.26.8.
 
 ```bash
 cd httpx && go test -run='^$' -bench=. -benchmem ./...
@@ -123,44 +123,49 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/httpx
 cpu: Apple M2 Pro
-BenchmarkServeMuxBaseline-10    	11014020	       108.7 ns/op	      18 B/op	       2 allocs/op
-BenchmarkGroupRoute-10          	10988310	       113.5 ns/op	      18 B/op	       2 allocs/op
-ok  	github.com/Wigata-Intech/w-tools/httpx	3.080s
-ok  	github.com/Wigata-Intech/w-tools/httpx/client	0.422s
+BenchmarkServeMuxBaseline-10    	11571783	       115.1 ns/op	      18 B/op	       2 allocs/op
+BenchmarkGroupRoute-10          	10483874	       108.1 ns/op	      18 B/op	       2 allocs/op
+PASS
+ok  	github.com/Wigata-Intech/w-tools/httpx	4.004s
+PASS
+ok  	github.com/Wigata-Intech/w-tools/httpx/client	0.283s
 goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/httpx/middleware
 cpu: Apple M2 Pro
-BenchmarkBareHandler-10               	 6723567	       173.8 ns/op	     512 B/op	       3 allocs/op
-BenchmarkLogger-10                    	 1000000	      1164 ns/op	     673 B/op	       8 allocs/op
-BenchmarkLoggerCapture-10             	  442272	      2873 ns/op	    2293 B/op	      40 allocs/op
-BenchmarkCanonicalChain-10            	  400852	      3054 ns/op	    1907 B/op	      32 allocs/op
-BenchmarkCanonicalChainParallel-10    	  429691	      2825 ns/op	    1911 B/op	      32 allocs/op
-BenchmarkRateLimitParallel-10         	 3063607	       375.0 ns/op	     512 B/op	       3 allocs/op
-ok  	github.com/Wigata-Intech/w-tools/httpx/middleware	8.270s
+BenchmarkBareHandler-10               	 7669458	       161.7 ns/op	     512 B/op	       3 allocs/op
+BenchmarkLogger-10                    	 1000000	      1152 ns/op	     673 B/op	       8 allocs/op
+BenchmarkLoggerCapture-10             	  404302	      2739 ns/op	    2293 B/op	      40 allocs/op
+BenchmarkCanonicalChain-10            	  430562	      2866 ns/op	    2291 B/op	      35 allocs/op
+BenchmarkCanonicalChainParallel-10    	  412689	      2928 ns/op	    2296 B/op	      35 allocs/op
+BenchmarkRateLimitParallel-10         	 3245058	       368.7 ns/op	     512 B/op	       3 allocs/op
+BenchmarkIdempotencyFirst-10          	  372435	      2938 ns/op	    7298 B/op	      38 allocs/op
+BenchmarkIdempotencyReplay-10         	  379066	      2993 ns/op	    7391 B/op	      35 allocs/op
+PASS
+ok  	github.com/Wigata-Intech/w-tools/httpx/middleware	10.351s
 ```
 
 </details>
 
 | Situation | ns/op | allocs/op | Meaning for you |
 | --------- | ----- | --------- | --------------- |
-| Raw `ServeMux` routing | ~109 | 2 | The stdlib baseline |
-| The same route through nested groups | ~114 | 2 | **Grouping is free** — parity within noise, identical allocations, because groups are registration-time sugar |
-| Request floor (build + bare handler) | ~174 | 3 | What the middleware numbers subtract |
-| `Logger` middleware, capture off | ~1,164 | 8 | ~1µs per request — almost all of it the JSON access line itself |
-| `Logger` with request-body capture | ~2,873 | 40 | The opt-in costs ~1.7µs more: capture, parse, structured attr |
-| Full canonical chain (RealIP → RequestID → Trace → Logger → Recover) | ~3,054 | 32 | Your whole production identity stack: ~3µs of overhead per request |
+| Raw `ServeMux` routing | ~115 | 2 | The stdlib baseline |
+| The same route through nested groups | ~108 | 2 | **Grouping is free** — parity within noise, identical allocations, because groups are registration-time sugar |
+| Request floor (build + bare handler) | ~162 | 3 | What the middleware numbers subtract |
+| `Logger` middleware, capture off | ~1,152 | 8 | ~1µs per request — almost all of it the JSON access line itself |
+| `Logger` with request-body capture | ~2,739 | 40 | The opt-in costs ~1.6µs more: capture, parse, structured attr |
+| Full canonical chain (RealIP → RequestID → Trace → Logger → Recover) | ~2,866 | 35 | Your whole production identity stack: ~3µs of overhead per request |
 
 The practical takeaway: the expensive thing in the stack is writing a log line, not the middleware machinery around it — and even the everything-on chain costs less than 0.3% of a 1ms handler.
 
-Under concurrency the chain holds flat (~2.8–3.1µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~364 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
+Under concurrency the chain stays in one band (~2.5–3.6µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~369 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
 
-`Idempotency` adds ~3.3µs for the winning request (claim, capture, store) and serves a duplicate's replay in ~3.6µs without touching the handler — both invisible next to any real handler. Measured on the same machine, go1.26.6:
+`Idempotency` adds ~2.9µs for the winning request (claim, capture, store) and serves a duplicate's replay in ~2.8µs without touching the handler — both invisible next to any real handler. Measured on the same machine, go1.26.8:
 
 ```text
 $ cd middleware && go test -run='^$' -bench=Idempotency -benchmem .
-BenchmarkIdempotencyFirst-10     	  341473	      3340 ns/op	    7304 B/op	      38 allocs/op
-BenchmarkIdempotencyReplay-10    	  305167	      3602 ns/op	    7391 B/op	      35 allocs/op
+BenchmarkIdempotencyFirst-10     	  414127	      2910 ns/op	    7290 B/op	      38 allocs/op
+BenchmarkIdempotencyReplay-10    	  380047	      2843 ns/op	    7390 B/op	      35 allocs/op
 ```
 
 The two wire-input parsers (RealIP's forwarding headers, the W3C traceparent) are fuzzed:

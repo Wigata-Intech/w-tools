@@ -4,7 +4,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/Wigata-Intech/w-tools/x/hasher.svg)](https://pkg.go.dev/github.com/Wigata-Intech/w-tools/x/hasher)
 
-**Status: experimental, under `x/`, at `v0.1.0`.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Never build anything load-bearing on an `x/` package.
+**Status: experimental, under `x/`, at `v0.2.0`.** The `x/` contract applies in full: the API may break between minors, the experiment may fail, and the package may be **deleted outright**. Never build anything load-bearing on an `x/` package.
 
 ## TL;DR
 
@@ -82,15 +82,15 @@ The defaults are pinned by test to RFC 9106's recommended profile, the same one 
 
 ## What it costs
 
-One hash is deliberately expensive — **the cost is the defense**. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, go1.26.6:
+One hash is deliberately expensive — **the cost is the defense**. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 27.0, go1.26.8:
 
 ```text
 $ go test -run=NONE -bench=. -benchtime=20x .
-BenchmarkHash-10      20   23208873 ns/op   19926944 B/op   34 allocs/op
-BenchmarkVerify-10    20   24637658 ns/op   19925629 B/op   27 allocs/op
+BenchmarkHash-10      	      20	  22755908 ns/op	19927328 B/op	      35 allocs/op
+BenchmarkVerify-10    	      20	  21822498 ns/op	19925339 B/op	      27 allocs/op
 ```
 
-~23ms and ~19.9 MiB per operation: budget roughly 40 logins/second/core, and put a rate limit in front of any endpoint that calls it (`httpx/middleware.RateLimit` exists for exactly this).
+~22ms and ~19.9 MiB per operation: budget roughly 45 logins/second/core, and put a rate limit in front of any endpoint that calls it (`httpx/middleware.RateLimit` exists for exactly this).
 
 ## The promises
 

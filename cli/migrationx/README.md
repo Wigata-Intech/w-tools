@@ -67,7 +67,7 @@ A `-- migrationx:no-transaction` migration carries that same exposure by design:
 
 ## What it costs
 
-Fake-driver numbers — the engine's own work with the database costing nothing. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+Fake-driver numbers — the engine's own work with the database costing nothing. Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 27.0, go1.26.8.
 
 ```bash
 cd cli/migrationx && go test -run='^$' -bench=. -benchmem .
@@ -81,18 +81,19 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/cli/migrationx
 cpu: Apple M2 Pro
-BenchmarkParseScript-10    	   29318	     39679 ns/op	   42320 B/op	     509 allocs/op
-BenchmarkLoad-10           	    6358	    185756 ns/op	  130201 B/op	    3443 allocs/op
-BenchmarkUpTen-10          	   25497	     47126 ns/op	   38358 B/op	     557 allocs/op
-ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	4.721s
+BenchmarkParseScript-10    	   30584	     39484 ns/op	   42320 B/op	     509 allocs/op
+BenchmarkLoad-10           	    6307	    191053 ns/op	  130206 B/op	    3443 allocs/op
+BenchmarkUpTen-10          	   25572	     47206 ns/op	   40045 B/op	     562 allocs/op
+PASS
+ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	4.637s
 ```
 
 </details>
 
 | Measure | Result |
 | ------- | ------ |
-| Scanning a 100-statement file (`BenchmarkParseScript`) | ~40 µs |
-| Loading + checksumming 100 migration pairs (`BenchmarkLoad`) | ~186 µs |
+| Scanning a 100-statement file (`BenchmarkParseScript`) | ~39 µs |
+| Loading + checksumming 100 migration pairs (`BenchmarkLoad`) | ~191 µs |
 | Applying ten migrations — transactions, probes, history (`BenchmarkUpTen`) | ~47 µs of engine overhead |
 
 Migrations run once per deploy; real cost is your SQL, not the engine. Fuzzing covers the two own-parsers — the statement scanner (mirror-oracle invariants) and the filename parser (round-trip invariants):

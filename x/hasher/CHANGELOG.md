@@ -4,6 +4,8 @@ All notable changes to `x/hasher` are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-28
+
 ### Changed
 
 - Minimum Go version raised to 1.26.8 (`go.mod` directive); Go 1.25 and earlier are out of upstream support, and `golang.org/x/crypto` v0.56.0+ requires Go 1.26

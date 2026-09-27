@@ -92,7 +92,7 @@ $ go test -run='^$' -fuzz=FuzzRedact -fuzztime=10s .
 
 ## What it costs
 
-Read it as a price list — each row is a situation you might be in (6-attr record, output discarded). Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 26.5.2, go1.26.6.
+Read it as a price list — each row is a situation you might be in (6-attr record, output discarded). Measured on a MacBook Pro — Apple M2 Pro (10 cores), 16 GB RAM, macOS 27.0, go1.26.8.
 
 ```bash
 cd logger && go test -run='^$' -bench=. -benchmem ./...
@@ -106,32 +106,32 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/logger
 cpu: Apple M2 Pro
-BenchmarkRawSlog-10                 	 1780122	       708.2 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPassThrough-10             	 1743573	       704.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkContextAttrs-10            	 1000000	      1065 ns/op	     288 B/op	       4 allocs/op
-BenchmarkRulesNoMatch-10            	 1329769	       951.7 ns/op	     208 B/op	       1 allocs/op
-BenchmarkRedactTopLevel-10          	 1000000	      1005 ns/op	     192 B/op	       4 allocs/op
-BenchmarkRedactStruct-10            	  560204	      2120 ns/op	    1474 B/op	      28 allocs/op
-BenchmarkPassThroughParallel-10     	 3889734	       350.5 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRedactStructParallel-10    	  533304	      2319 ns/op	    1556 B/op	      29 allocs/op
+BenchmarkRawSlog-10                 	 1782433	       650.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPassThrough-10             	 1821025	       658.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkContextAttrs-10            	 1218474	      1024 ns/op	     288 B/op	       4 allocs/op
+BenchmarkRulesNoMatch-10            	 1366821	       843.2 ns/op	     208 B/op	       1 allocs/op
+BenchmarkRedactTopLevel-10          	 1253672	       929.3 ns/op	     192 B/op	       4 allocs/op
+BenchmarkRedactStruct-10            	  620011	      1996 ns/op	    1298 B/op	      26 allocs/op
+BenchmarkPassThroughParallel-10     	 4759831	       270.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRedactStructParallel-10    	 1384746	       860.1 ns/op	    1382 B/op	      27 allocs/op
 PASS
-ok  	github.com/Wigata-Intech/w-tools/logger	12.532s
+ok  	github.com/Wigata-Intech/w-tools/logger	15.225s
 ```
 
 </details>
 
 | Situation | ns/op | allocs/op | Meaning for you |
 | --------- | ----- | --------- | --------------- |
-| Raw `log/slog`, no wrapper | ~710 | 0 | The baseline |
-| `logger`, no redaction rules | ~700 | 0 | **The wrapper is free** — parity within run-to-run variance (±5%), zero allocations |
-| `ContextAttrs` set, two attrs appended | ~1070 | 4 | Enrichment: extractor call, duplicate-key scan, record clone |
-| Rules configured, record has no sensitive keys | ~950 | 1 | Your normal traffic with redaction armed: ~+30% |
-| Redacting/masking top-level keys | ~1000 | 4 | A protected log line costs about 1µs |
-| Sensitive struct, nested two deep | ~2100 | 28 | Reflection is the expensive path — ~3× baseline |
+| Raw `log/slog`, no wrapper | ~650 | 0 | The baseline |
+| `logger`, no redaction rules | ~660 | 0 | **The wrapper is free** — parity within run-to-run variance (±5%), zero allocations |
+| `ContextAttrs` set, two attrs appended | ~1020 | 4 | Enrichment: extractor call, duplicate-key scan, record clone |
+| Rules configured, record has no sensitive keys | ~840 | 1 | Your normal traffic with redaction armed: ~+30% |
+| Redacting/masking top-level keys | ~930 | 4 | A protected log line costs about 1µs |
+| Sensitive struct, nested two deep | ~2000 | 26 | Reflection is the expensive path — ~3× baseline |
 
-The practical takeaway from the last two rows: on your hottest code paths, pass sensitive values as top-level keys (`"card_number", pan`) rather than logging whole structs — identical protection, a third of the cost. Struct logging is fine everywhere else.
+The practical takeaway from the last two rows: on your hottest code paths, pass sensitive values as top-level keys (`"card_number", pan`) rather than logging whole structs — identical protection, under half the cost. Struct logging is fine everywhere else.
 
-Under concurrency it scales rather than queues: eight goroutines sharing one logger push the pass-through per-line cost *down* (~350 ns/op at `-cpu 8`, still zero allocations) and hold the struct path essentially flat (~2.3µs) — the handler and the reflection plan cache are read-shared, so more cores mean more throughput, not a lock convoy.
+Under concurrency it scales rather than queues: eight goroutines sharing one logger push the pass-through per-line cost *down* (~260 ns/op at `-cpu 8`, still zero allocations) and the struct path down with it (~2.3µs at `-cpu 1`, ~800 ns/op at `-cpu 8`) — the handler and the reflection plan cache are read-shared, so more cores mean more throughput, not a lock convoy.
 
 ## The promises
 

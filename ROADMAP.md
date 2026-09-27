@@ -4,12 +4,13 @@ Where each package is and where it's going. ✅ delivered · 🚧 agreed and in 
 
 ## cli
 
-Shipped as `cli/v0.1.0`, 2026-08-14, `migrationx` included.
+Shipped as `cli/v0.1.0`, 2026-08-14, `migrationx` included; `cli/v0.2.0` 2026-09-28.
 
 | Status | Item |
 | ------ | ---- |
 | ✅ | Stdlib-only command/flag/env framework for service entrypoints: command tree, precedence chain, struct binding, generated help — shipped as `cli/v0.1.0` |
 | ✅ | `cli/migrationx` — SQL migrations on `database/sql` + `embed`: timestamp-versioned files with checksums and a migration lock; drivers stay consumer-side; shipped in `cli/v0.1.0` — engine, scanner, locks, migrate command |
+| ✅ | `migrationx` hardening from the v0.1.0 review: orphaned migrations reported inline by `Status` (`Migration.Orphaned`), `UpTo`/`DownTo` warn on unknown targets, mysql lock scoped to `DATABASE()`, dirty-state tracking for no-transaction mysql migrations (`Migration.Dirty`, auto-healed history column) — shipped in `cli/v0.2.0` |
 | 💡 | Live config reload — *proposed, not approved*: would supersede the design's deliberate omissions; shape if accepted is SIGHUP-triggered re-resolution with an `OnReload` callback, never file watching |
 
 ## httpx
@@ -81,7 +82,7 @@ Each starts with its own RFC or design doc; 💡 means candidate, not commitment
 | Status | Item |
 | ------ | ---- |
 | 💡 | `dbx` — `database/sql` ergonomics (tx helpers, timeouts, scanning); never imports a driver, tested against sqlite/mysql via the examples module |
-| 💡 | Go 1.27 compatibility pass — verify the gate under 1.27 (json/v2 becomes `encoding/json`'s engine); floor bumps stay demand-driven, since a floor excludes every consumer below it |
+| ✅ | Go 1.27 compatibility pass — the gate is green under go1.27.1 (CI `stable`). Floors moved to 1.26.8 across every module in the 2026-09-28 train, demanded by `golang.org/x/crypto` v0.56.0+ (GO-2026-6354/6355 reachable from `x/sshx`); floor bumps otherwise stay demand-driven, since a floor excludes every consumer below it |
 | 🚧 | `health` — protocol-agnostic named-check registry (per-resource reports, cached parallel probes) with stdlib `net/http` handlers for `/livez`, `/readyz`, `/healthz` — all three first-class, the last serving uptime monitors and non-Kubernetes deployments; `SetReady(false)` is the zero-downtime drain lever; no httpx import in either direction; design drafted 2026-08-15, awaiting approval |
 | 💡 | `tomlx` / `yamlx` — config-format decoders plugging into `cli`'s decoder seam (TOML feasible; YAML only ever as a strict subset under `x/`) |
 | 💡 | `x/token` — JWT on stdlib crypto only; security-sensitive, so `x/` and heavy hardening if attempted |
