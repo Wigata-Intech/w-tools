@@ -2,14 +2,18 @@
 //
 // Canonical order, outermost first:
 //
-//	RealIP → RequestID → Trace → Logger → Recover → CORS → RateLimit → Idempotency → handler
+//	RealIP → RequestID → Trace → SecureHeaders → Logger → Recover → CORS → RateLimit → BodyLimit → Idempotency → handler
 //
-// RealIP first so everything downstream sees the real client; Recover
-// inside Logger so a panic is logged as the 500 it became, with its
-// latency; the gates (CORS, RateLimit, Idempotency) innermost so their
-// short-circuit responses are logged like any other and their code runs
-// under Recover. In this order CORS preflights are deliberately
-// unmetered — they short-circuit before RateLimit; place RateLimit
-// before CORS to meter them too. Idempotency sits inside RateLimit so a
-// rate-limited request never consumes an idempotency claim.
+// RealIP first so everything downstream sees the real client;
+// SecureHeaders outside Logger, Recover and the gates so every response —
+// panic-turned-500s and gate short-circuits included — carries the
+// security headers; Recover inside Logger so a panic is logged as the 500
+// it became, with its latency; the gates (CORS, RateLimit, BodyLimit,
+// Idempotency) innermost so their short-circuit responses are logged like
+// any other and their code runs under Recover. In this order CORS
+// preflights are deliberately unmetered — they short-circuit before
+// RateLimit; place RateLimit before CORS to meter them too. BodyLimit
+// sits outside Idempotency so an oversized body is refused before it is
+// fingerprinted; Idempotency sits inside RateLimit so a rate-limited
+// request never consumes an idempotency claim.
 package middleware

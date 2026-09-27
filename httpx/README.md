@@ -15,7 +15,7 @@ go get github.com/Wigata-Intech/w-tools/httpx
 - A server that's production-safe by default: every timeout on, graceful shutdown in one call
 - Route groups with shared prefixes and middleware over the stdlib `ServeMux` — every method routable, including RFC 10008 `QUERY`
 - JSON in and out: size-capped `Bind`, and errors as RFC 9457 `application/problem+json` by default
-- A standard middleware set: `RealIP`, `RequestID`, `Trace` (W3C traceparent), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction — plus the gates: `CORS`, `RateLimit` (pluggable `Limiter`), and `Idempotency` (at-most-once execution per `Idempotency-Key`, pluggable `Store`)
+- A standard middleware set: `RealIP`, `RequestID` (optional inbound-ID validation), `Trace` (W3C traceparent), `SecureHeaders` (JSON-API defaults, opt-in HSTS), `Recover`, `Logger` — with request/response body logging that plugs into your logger's redaction — plus the gates: `CORS`, `RateLimit` (pluggable `Limiter`), `BodyLimit` (413 on oversized bodies, chunked ones capped too), and `Idempotency` (at-most-once execution per `Idempotency-Key`, pluggable `Store`)
 - BFF-ready HTML rendering (`Renderer` — templ satisfies it natively, `html/template` via the built-in adapter) and `ErrorMap` for one-line domain-error responses
 - An outbound `client`: pooling tuned for services (not the stdlib's 2 idle conns/host), a timeout you can't turn off, a circuit-breaker hook, trace propagation, and opt-in logging where redaction follows your logger
 - Handlers stay plain `http.HandlerFunc` — nothing to learn, nothing to eject from
@@ -87,14 +87,16 @@ Middleware wires in canonical order — outermost first, so the logger sees the 
 ```go
 s.Use(
     middleware.RealIP(middleware.RealIPConfig{TrustedProxies: proxies}),
-    middleware.RequestID(middleware.RequestIDConfig{}), // reuses inbound X-Request-ID, mints otherwise
-    middleware.Trace(),                                 // W3C traceparent in, ids in ctx — no OTel dependency
+    middleware.RequestID(middleware.RequestIDConfig{}),         // reuses inbound X-Request-ID, mints otherwise
+    middleware.Trace(),                                         // W3C traceparent in, ids in ctx — no OTel dependency
+    middleware.SecureHeaders(middleware.SecureHeadersConfig{}), // nosniff, no-referrer, locked-down CSP on every response
     middleware.Logger(middleware.LoggerConfig{Log: log.Slog()}),
     middleware.Recover(middleware.RecoverConfig{Log: log.Slog()}),
+    middleware.BodyLimit(middleware.BodyLimitConfig{}), // 413 past 1 MiB, before routing
 )
 ```
 
-Your own middleware plugs into the same slots — the chain type is the ecosystem's `func(http.Handler) http.Handler`, so anything written for that convention drops in unchanged. Per-middleware behavior and gotchas: [middleware/README.md](middleware/).
+SecureHeaders goes outside Logger and Recover so recovered 500s carry its headers too; the gates — CORS, RateLimit, BodyLimit, Idempotency, in that order — go innermost, after Recover. Your own middleware plugs into the same slots — the chain type is the ecosystem's `func(http.Handler) http.Handler`, so anything written for that convention drops in unchanged. Per-middleware behavior and gotchas: [middleware/README.md](middleware/).
 
 ### Using the client
 
@@ -193,7 +195,7 @@ BenchmarkIdempotencyFirst-10     	  414127	      2910 ns/op	    7290 B/op	      
 BenchmarkIdempotencyReplay-10    	  380047	      2843 ns/op	    7390 B/op	      35 allocs/op
 ```
 
-The two wire-input parsers (RealIP's forwarding headers, the W3C traceparent) are fuzzed:
+The wire-input parsers (RealIP's forwarding headers, the W3C traceparent) and the strict request-ID validator are fuzzed:
 
 <details>
 <summary>Fuzzing — commands and raw output</summary>
@@ -201,6 +203,7 @@ The two wire-input parsers (RealIP's forwarding headers, the W3C traceparent) ar
 ```text
 $ go test -run='^$' -fuzz=FuzzRealIP -fuzztime=10s .
 $ go test -run='^$' -fuzz=FuzzTraceparent -fuzztime=10s .
+$ go test -run='^$' -fuzz=FuzzStrictRequestID -fuzztime=10s .
 ```
 
 </details>

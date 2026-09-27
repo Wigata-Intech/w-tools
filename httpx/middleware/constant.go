@@ -29,6 +29,19 @@ const DefaultIdempotencyTTL = 24 * time.Hour
 // request-fingerprint read when the config leaves them unset.
 const DefaultIdempotencyMaxBody = 1 << 20 // 1 MiB
 
+// DefaultContentSecurityPolicy is the Content-Security-Policy
+// SecureHeaders sends when SecureHeadersConfig.ContentSecurityPolicy is
+// empty: nothing may load, nothing may frame the response.
+const DefaultContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'"
+
+// DefaultReferrerPolicy is the Referrer-Policy SecureHeaders sends when
+// SecureHeadersConfig.ReferrerPolicy is empty.
+const DefaultReferrerPolicy = "no-referrer"
+
+// OmitHeader is the SecureHeadersConfig header value that makes
+// SecureHeaders not send that header.
+const OmitHeader = "-"
+
 // sweepThrottle spaces MemoryStore's at-capacity expired sweeps.
 const sweepThrottle = time.Second
 
