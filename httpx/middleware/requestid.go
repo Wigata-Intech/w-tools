@@ -26,9 +26,11 @@ type requestIDKey struct{}
 // the inbound header value when present and valid (a gateway may have
 // minted it), a freshly generated 32-char hex ID otherwise. The ID is
 // stored in the request context — read it with RequestIDFrom — and
-// echoed on the response so clients can quote it. If ID generation fails
-// and no valid inbound value exists, the request proceeds without an ID
-// rather than failing.
+// echoed on the response so clients can quote it. A rejected inbound
+// value is also replaced in the request header next sees, so nothing
+// downstream reads it; the caller's request is not modified. If ID
+// generation fails and no valid inbound value exists, the request
+// proceeds without an ID rather than failing.
 func RequestID(cfg RequestIDConfig) httpx.Middleware {
 	header := cfg.Header
 	if header == "" {
@@ -44,13 +46,21 @@ func RequestID(cfg RequestIDConfig) httpx.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := r.Header.Get(header)
-			if id == "" || !valid(id) {
+			rejected := id != "" && !valid(id)
+			if id == "" || rejected {
 				var ok bool
 				if id, ok = randomHex(16); !ok {
+					if rejected {
+						r = withRequestHeader(r, header, "")
+					}
 					next.ServeHTTP(w, r)
 
 					return
 				}
+			}
+
+			if rejected {
+				r = withRequestHeader(r, header, id)
 			}
 
 			// Set before next so the ID rides out with the first write.
@@ -58,6 +68,20 @@ func RequestID(cfg RequestIDConfig) httpx.Middleware {
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id)))
 		})
 	}
+}
+
+// withRequestHeader returns a shallow copy of r with its own header,
+// carrying value under name, or without name when value is empty.
+func withRequestHeader(r *http.Request, name, value string) *http.Request {
+	r = r.WithContext(r.Context())
+	r.Header = r.Header.Clone()
+	if value == "" {
+		r.Header.Del(name)
+	} else {
+		r.Header.Set(name, value)
+	}
+
+	return r
 }
 
 // StrictRequestID reports whether id is 1 to 64 characters, each an

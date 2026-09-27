@@ -151,9 +151,10 @@ func TestRequestID(t *testing.T) {
 				header = middleware.DefaultRequestIDHeader
 			}
 
-			var ctxID string
+			var ctxID, reqHeaderID string
 			h := middleware.RequestID(tt.input.cfg)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				ctxID = middleware.RequestIDFrom(r.Context())
+				reqHeaderID = r.Header.Get(header)
 			}))
 
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
@@ -164,6 +165,9 @@ func TestRequestID(t *testing.T) {
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, req)
 			headerID := rec.Header().Get(header)
+			if got := req.Header.Get(header); got != tt.input.inbound {
+				t.Errorf("caller's request header = %q, want it unmodified %q", got, tt.input.inbound)
+			}
 
 			switch {
 			case tt.expected.none:
@@ -173,12 +177,18 @@ func TestRequestID(t *testing.T) {
 				if headerID != "" {
 					t.Errorf("response header = %q, want none", headerID)
 				}
+				if reqHeaderID != "" {
+					t.Errorf("request header seen by next = %q, want none", reqHeaderID)
+				}
 			case tt.expected.id != "":
 				if ctxID != tt.expected.id {
 					t.Errorf("ctx ID = %q, want %q", ctxID, tt.expected.id)
 				}
 				if headerID != tt.expected.id {
 					t.Errorf("response header = %q, want %q", headerID, tt.expected.id)
+				}
+				if reqHeaderID != tt.expected.id {
+					t.Errorf("request header seen by next = %q, want %q", reqHeaderID, tt.expected.id)
 				}
 			default:
 				if !isHexN(ctxID, 32) {
@@ -189,6 +199,13 @@ func TestRequestID(t *testing.T) {
 				}
 				if tt.input.inbound != "" && ctxID == tt.input.inbound {
 					t.Errorf("ctx ID = %q, want the inbound value replaced", ctxID)
+				}
+				wantReq := "" // an absent inbound header stays absent
+				if tt.input.inbound != "" {
+					wantReq = ctxID
+				}
+				if reqHeaderID != wantReq {
+					t.Errorf("request header seen by next = %q, want %q", reqHeaderID, wantReq)
 				}
 			}
 		})
