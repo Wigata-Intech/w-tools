@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -205,39 +206,288 @@ func TestServerUse(t *testing.T) {
 	})
 }
 
+// recordingErrorWriter is an ErrorWriter that writes the default Problem
+// and records every status it was handed.
+type recordingErrorWriter struct {
+	mu       sync.Mutex
+	statuses []int
+}
+
+func (e *recordingErrorWriter) write(w http.ResponseWriter, _ *http.Request, status int, detail string) {
+	e.mu.Lock()
+	e.statuses = append(e.statuses, status)
+	e.mu.Unlock()
+
+	httpx.Error(w, status, detail)
+}
+
+func (e *recordingErrorWriter) got() []int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return slices.Clone(e.statuses)
+}
+
+// newServeHTTPServer is the server TestServerServeHTTP drives: a GET-only
+// /ok, a /orders/{id} echoing its path value, and a /gone whose handler
+// writes its own plain-text 404.
+func newServeHTTPServer(errorWriter httpx.ErrorWriter) *httpx.Server {
+	s := httpx.New(httpx.Config{ErrorWriter: errorWriter})
+	s.Get("/ok", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	s.Get("/orders/{id}", func(w http.ResponseWriter, r *http.Request) {
+		httpx.JSON(w, http.StatusOK, map[string]string{"pattern": r.Pattern, "id": r.PathValue("id")})
+	})
+	s.Get("/gone", http.NotFound)
+
+	return s
+}
+
 func TestServerServeHTTP(t *testing.T) {
+	type serveInput struct {
+		errorWriter bool // route unmatched requests through a recordingErrorWriter
+		method      string
+		target      string
+	}
+
+	type serveExpected struct {
+		status  int
+		header  http.Header // the complete response header
+		body    string
+		written []int // statuses the ErrorWriter was handed
+	}
+
+	stdlibPlainText := func(allow string) http.Header {
+		h := http.Header{
+			"Content-Type":           {"text/plain; charset=utf-8"},
+			"X-Content-Type-Options": {"nosniff"},
+		}
+		if allow != "" {
+			h.Set("Allow", allow)
+		}
+		return h
+	}
+
 	tests := []struct {
 		name     string
-		input    string // request target
-		expected int
+		input    serveInput
+		expected serveExpected
 	}{
 		{
 			name:     "serves registered routes",
-			input:    "/ok",
-			expected: http.StatusOK,
+			input:    serveInput{method: http.MethodGet, target: "/ok"},
+			expected: serveExpected{status: http.StatusOK, header: http.Header{}},
 		},
 		{
-			name:     "unmatched routes are the stdlib 404",
-			input:    "/nope",
-			expected: http.StatusNotFound,
+			name:  "unmatched routes are the stdlib 404",
+			input: serveInput{method: http.MethodGet, target: "/nope"},
+			expected: serveExpected{
+				status: http.StatusNotFound,
+				header: stdlibPlainText(""),
+				body:   "404 page not found\n",
+			},
+		},
+		{
+			name:  "a wrong method is the stdlib 405",
+			input: serveInput{method: http.MethodDelete, target: "/ok"},
+			expected: serveExpected{
+				status: http.StatusMethodNotAllowed,
+				header: stdlibPlainText("GET, HEAD"),
+				body:   "Method Not Allowed\n",
+			},
+		},
+		{
+			name:  "an unclean unmatched path is the stdlib redirect",
+			input: serveInput{method: http.MethodGet, target: "/a/../nope"},
+			expected: serveExpected{
+				status: http.StatusTemporaryRedirect,
+				header: http.Header{
+					"Content-Type": {"text/html; charset=utf-8"},
+					"Location":     {"/nope"},
+				},
+				body: "<a href=\"/nope\">Temporary Redirect</a>.\n\n",
+			},
+		},
+		{
+			name:  "with an ErrorWriter, matched routes keep their pattern and path values",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/orders/ord_1"},
+			expected: serveExpected{
+				status: http.StatusOK,
+				header: http.Header{"Content-Type": {"application/json"}},
+				body:   `{"id":"ord_1","pattern":"GET /orders/{id}"}`,
+			},
+		},
+		{
+			name:  "with an ErrorWriter, an unclean path to a route keeps ServeMux's redirect",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/a/../ok"},
+			expected: serveExpected{
+				status: http.StatusTemporaryRedirect,
+				header: http.Header{
+					"Content-Type": {"text/html; charset=utf-8"},
+					"Location":     {"/ok"},
+				},
+				body: "<a href=\"/ok\">Temporary Redirect</a>.\n\n",
+			},
+		},
+		{
+			name:  "with an ErrorWriter, a handler-written 404 is untouched",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/gone"},
+			expected: serveExpected{
+				status: http.StatusNotFound,
+				header: stdlibPlainText(""),
+				body:   "404 page not found\n",
+			},
+		},
+		{
+			name:  "with an ErrorWriter, an unclean unmatched path keeps ServeMux's redirect",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/a/../nope"},
+			expected: serveExpected{
+				status: http.StatusTemporaryRedirect,
+				header: http.Header{
+					"Content-Type": {"text/html; charset=utf-8"},
+					"Location":     {"/nope"},
+				},
+				body: "<a href=\"/nope\">Temporary Redirect</a>.\n\n",
+			},
+		},
+		{
+			name:  "with an ErrorWriter, a double-slash unmatched path keeps ServeMux's redirect",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "//nope"},
+			expected: serveExpected{
+				status: http.StatusTemporaryRedirect,
+				header: http.Header{
+					"Content-Type": {"text/html; charset=utf-8"},
+					"Location":     {"/nope"},
+				},
+				body: "<a href=\"/nope\">Temporary Redirect</a>.\n\n",
+			},
+		},
+		{
+			name:  "with an ErrorWriter, unmatched routes are a 404 through it",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/nope"},
+			expected: serveExpected{
+				status:  http.StatusNotFound,
+				header:  http.Header{"Content-Type": {"application/problem+json"}},
+				body:    `{"type":"about:blank","title":"Not Found","status":404}`,
+				written: []int{http.StatusNotFound},
+			},
+		},
+		{
+			name:  "with an ErrorWriter, HEAD on an unmatched route is a 404 through it",
+			input: serveInput{errorWriter: true, method: http.MethodHead, target: "/nope"},
+			expected: serveExpected{
+				status:  http.StatusNotFound,
+				header:  http.Header{"Content-Type": {"application/problem+json"}},
+				body:    `{"type":"about:blank","title":"Not Found","status":404}`, // the recorder keeps it; a real server drops it
+				written: []int{http.StatusNotFound},
+			},
+		},
+		{
+			name:  "with an ErrorWriter, a wrong method is a 405 through it with ServeMux's Allow",
+			input: serveInput{errorWriter: true, method: http.MethodDelete, target: "/ok"},
+			expected: serveExpected{
+				status: http.StatusMethodNotAllowed,
+				header: http.Header{
+					"Allow":        {"GET, HEAD"},
+					"Content-Type": {"application/problem+json"},
+				},
+				body:    `{"type":"about:blank","title":"Method Not Allowed","status":405}`,
+				written: []int{http.StatusMethodNotAllowed},
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := httpx.New(httpx.Config{})
-			s.Get("/ok", func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
+			var ew recordingErrorWriter
+			var errorWriter httpx.ErrorWriter
+			if tt.input.errorWriter {
+				errorWriter = ew.write
+			}
+			s := newServeHTTPServer(errorWriter)
 
 			rec := httptest.NewRecorder()
-			s.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, tt.input, nil))
+			s.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), tt.input.method, tt.input.target, nil))
 
-			if rec.Code != tt.expected {
-				t.Errorf("status = %d, want %d", rec.Code, tt.expected)
+			if rec.Code != tt.expected.status {
+				t.Errorf("status = %d, want %d", rec.Code, tt.expected.status)
+			}
+			if !maps.EqualFunc(rec.Header(), tt.expected.header, slices.Equal) {
+				t.Errorf("header = %v, want %v", rec.Header(), tt.expected.header)
+			}
+			if rec.Body.String() != tt.expected.body {
+				t.Errorf("body = %q, want %q", rec.Body.String(), tt.expected.body)
+			}
+			if !slices.Equal(ew.got(), tt.expected.written) {
+				t.Errorf("ErrorWriter statuses = %v, want %v", ew.got(), tt.expected.written)
 			}
 		})
 	}
+
+	t.Run("with an ErrorWriter, HEAD on an unmatched route sends no body over the wire", func(t *testing.T) {
+		var ew recordingErrorWriter
+		srv := httptest.NewServer(newServeHTTPServer(ew.write))
+		defer srv.Close()
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodHead, srv.URL+"/nope", nil)
+		if err != nil {
+			t.Fatalf("request: %v", err)
+		}
+		resp, err := srv.Client().Do(req)
+		if err != nil {
+			t.Fatalf("do: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+		}
+		if len(body) != 0 {
+			t.Errorf("body = %q, want none", body)
+		}
+		if !slices.Equal(ew.got(), []int{http.StatusNotFound}) {
+			t.Errorf("ErrorWriter statuses = %v, want [404]", ew.got())
+		}
+	})
+
+	t.Run("with an ErrorWriter, Use middleware still wraps unmatched responses", func(t *testing.T) {
+		var ew recordingErrorWriter
+		s := newServeHTTPServer(ew.write)
+		s.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Wrapped", "yes")
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		requests := []struct {
+			method, target string
+			status         int
+		}{
+			{http.MethodGet, "/nope", http.StatusNotFound},
+			{http.MethodDelete, "/ok", http.StatusMethodNotAllowed},
+		}
+		for _, req := range requests {
+			rec := httptest.NewRecorder()
+			s.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), req.method, req.target, nil))
+
+			if rec.Code != req.status {
+				t.Errorf("%s %s: status = %d, want %d", req.method, req.target, rec.Code, req.status)
+			}
+			if got := rec.Header().Get("X-Wrapped"); got != "yes" {
+				t.Errorf("%s %s: X-Wrapped = %q, want yes", req.method, req.target, got)
+			}
+		}
+		if !slices.Equal(ew.got(), []int{http.StatusNotFound, http.StatusMethodNotAllowed}) {
+			t.Errorf("ErrorWriter statuses = %v, want [404 405]", ew.got())
+		}
+	})
 
 	t.Run("safe under concurrent requests", func(t *testing.T) {
 		s := httpx.New(httpx.Config{})
@@ -256,6 +506,31 @@ func TestServerServeHTTP(t *testing.T) {
 			})
 		}
 		wg.Wait()
+	})
+
+	t.Run("with an ErrorWriter, safe under concurrent matched and unmatched requests", func(t *testing.T) {
+		var ew recordingErrorWriter
+		s := newServeHTTPServer(ew.write)
+
+		var wg sync.WaitGroup
+		for i := range 8 {
+			wg.Go(func() {
+				target, want := "/ok", http.StatusOK
+				if i%2 == 0 {
+					target, want = "/nope", http.StatusNotFound
+				}
+				rec := httptest.NewRecorder()
+				s.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, target, nil))
+				if rec.Code != want {
+					t.Errorf("%s: status = %d, want %d", target, rec.Code, want)
+				}
+			})
+		}
+		wg.Wait()
+
+		if len(ew.got()) != 4 {
+			t.Errorf("ErrorWriter calls = %d, want 4", len(ew.got()))
+		}
 	})
 }
 

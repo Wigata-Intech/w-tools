@@ -1,10 +1,12 @@
 package httpx_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -170,5 +172,123 @@ func TestErrorMapRespond(t *testing.T) {
 			})
 		}
 		wg.Wait()
+	})
+}
+
+func TestErrorMapRespondRequest(t *testing.T) {
+	withRequestID := func(r *http.Request, p *httpx.Problem) {
+		p.Extensions["request_id"] = r.Header.Get("X-Request-ID")
+	}
+
+	type respondRequestInput struct {
+		enrich func(r *http.Request, p *httpx.Problem)
+		err    error
+	}
+
+	tests := []struct {
+		name     string
+		input    respondRequestInput
+		expected respondExpected
+	}{
+		{
+			name:  "a Problemer error is enriched",
+			input: respondRequestInput{enrich: withRequestID, err: fmt.Errorf("charging: %w", &quotaError{})},
+			expected: respondExpected{
+				status:      http.StatusTooManyRequests,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Quota Exceeded","status":429,"request_id":"req-1"}`,
+			},
+		},
+		{
+			name:  "a registry match is enriched",
+			input: respondRequestInput{enrich: withRequestID, err: fmt.Errorf("fetching order: %w", errNotFound)},
+			expected: respondExpected{
+				status:      http.StatusNotFound,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Not Found","status":404,"request_id":"req-1"}`,
+			},
+		},
+		{
+			name:  "the bare 500 fallback is enriched and still never leaks the error text",
+			input: respondRequestInput{enrich: withRequestID, err: errInternal},
+			expected: respondExpected{
+				status:      http.StatusInternalServerError,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Internal Server Error","status":500,"request_id":"req-1"}`,
+			},
+		},
+		{
+			name: "enriched extensions naming standard members are ignored",
+			input: respondRequestInput{
+				enrich: func(_ *http.Request, p *httpx.Problem) { p.Extensions["status"] = 200 },
+				err:    errNotFound,
+			},
+			expected: respondExpected{
+				status:      http.StatusNotFound,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Not Found","status":404}`,
+			},
+		},
+		{
+			name:  "a nil Enrich responds exactly as Respond does",
+			input: respondRequestInput{enrich: nil, err: errNotFound},
+			expected: respondExpected{
+				status:      http.StatusNotFound,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Not Found","status":404}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newErrorMap()
+			m.Enrich = tt.input.enrich
+
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/orders/ord_1", nil)
+			r.Header.Set("X-Request-ID", "req-1")
+			rec := httptest.NewRecorder()
+
+			m.RespondRequest(rec, r, tt.input.err)
+
+			assertRespond(t, rec, tt.expected)
+		})
+	}
+
+	t.Run("Respond never calls Enrich", func(t *testing.T) {
+		m := newErrorMap()
+		m.Enrich = func(_ *http.Request, _ *httpx.Problem) { t.Error("Enrich called from Respond") }
+
+		m.Respond(httptest.NewRecorder(), errNotFound)
+	})
+
+	t.Run("concurrent enrichment never writes into a registered problem's extensions", func(t *testing.T) {
+		registered := map[string]any{"code": "E404"}
+
+		m := httpx.NewErrorMap()
+		m.Map(errNotFound, httpx.Problem{Status: http.StatusNotFound, Extensions: registered})
+		m.Enrich = withRequestID
+
+		var wg sync.WaitGroup
+		for i := range 8 {
+			wg.Go(func() {
+				id := "req-" + strconv.Itoa(i)
+				r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+				r.Header.Set("X-Request-ID", id)
+				rec := httptest.NewRecorder()
+
+				m.RespondRequest(rec, r, errNotFound)
+
+				want := `{"type":"about:blank","title":"Not Found","status":404,"code":"E404","request_id":"` + id + `"}`
+				if rec.Body.String() != want {
+					t.Errorf("body = %q, want %q", rec.Body.String(), want)
+				}
+			})
+		}
+		wg.Wait()
+
+		if len(registered) != 1 {
+			t.Errorf("registered extensions = %v, want only code", registered)
+		}
 	})
 }

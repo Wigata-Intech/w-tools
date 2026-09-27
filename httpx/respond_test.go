@@ -1,8 +1,12 @@
 package httpx_test
 
 import (
+	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/Wigata-Intech/w-tools/httpx"
@@ -100,6 +104,93 @@ func TestProblemRespond(t *testing.T) {
 				body:        `{"type":"about:blank","title":"Internal Server Error","status":500}`,
 			},
 		},
+		{
+			name: "extensions are written at the top level after the filled defaults",
+			input: httpx.Problem{
+				Status:     http.StatusNotFound,
+				Extensions: map[string]any{"request_id": "abc"},
+			},
+			expected: respondExpected{
+				status:      http.StatusNotFound,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Not Found","status":404,"request_id":"abc"}`,
+			},
+		},
+		{
+			name: "an empty extensions map writes like none",
+			input: httpx.Problem{
+				Status:     http.StatusNotFound,
+				Extensions: map[string]any{},
+			},
+			expected: respondExpected{
+				status:      http.StatusNotFound,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Not Found","status":404}`,
+			},
+		},
+		{
+			name: "several extensions follow the standard members, sorted by key",
+			input: httpx.Problem{
+				Type:     "https://example.com/problems/insufficient-funds",
+				Title:    "Insufficient Funds",
+				Status:   http.StatusUnprocessableEntity,
+				Detail:   "balance is 30, cost is 50",
+				Instance: "/orders/ord_1",
+				Extensions: map[string]any{
+					"request_id": "abc",
+					"balance":    30,
+					"errors":     []string{"a", "b"},
+				},
+			},
+			expected: respondExpected{
+				status:      http.StatusUnprocessableEntity,
+				contentType: "application/problem+json",
+				body:        `{"type":"https://example.com/problems/insufficient-funds","title":"Insufficient Funds","status":422,"detail":"balance is 30, cost is 50","instance":"/orders/ord_1","balance":30,"errors":["a","b"],"request_id":"abc"}`,
+			},
+		},
+		{
+			name: "extensions never override the filled defaults",
+			input: httpx.Problem{
+				Status:     http.StatusNotFound,
+				Extensions: map[string]any{"type": "https://evil.example", "title": "OK", "status": 200},
+			},
+			expected: respondExpected{
+				status:      http.StatusNotFound,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Not Found","status":404}`,
+			},
+		},
+		{
+			name: "standard-member names are matched case-insensitively",
+			input: httpx.Problem{
+				Status: http.StatusNotFound,
+				Extensions: map[string]any{
+					"Type":     "https://evil.example",
+					"TITLE":    "OK",
+					"Status":   200,
+					"detail":   "overridden",
+					"Instance": "/elsewhere",
+					"code":     "E404",
+				},
+			},
+			expected: respondExpected{
+				status:      http.StatusNotFound,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Not Found","status":404,"code":"E404"}`,
+			},
+		},
+		{
+			name: "an unmarshalable extension drops the extensions, keeping the problem",
+			input: httpx.Problem{
+				Status:     http.StatusBadRequest,
+				Extensions: map[string]any{"bad": make(chan int), "request_id": "abc"},
+			},
+			expected: respondExpected{
+				status:      http.StatusBadRequest,
+				contentType: "application/problem+json",
+				body:        `{"type":"about:blank","title":"Bad Request","status":400}`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -111,6 +202,61 @@ func TestProblemRespond(t *testing.T) {
 			assertRespond(t, rec, tt.expected)
 		})
 	}
+
+	t.Run("a struct embedding Problem keeps its own fields under json.Marshal", func(t *testing.T) {
+		type withID struct {
+			httpx.Problem
+
+			RequestID string `json:"request_id"`
+		}
+		const want = `{"type":"about:blank","title":"Not Found","status":404,"request_id":"abc"}`
+
+		b, err := json.Marshal(withID{
+			Problem:   httpx.Problem{Type: "about:blank", Title: "Not Found", Status: http.StatusNotFound},
+			RequestID: "abc",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if string(b) != want {
+			t.Errorf("json.Marshal() = %s, want %s", b, want)
+		}
+	})
+
+	t.Run("a stale Content-Length from an earlier writer is removed", func(t *testing.T) {
+		const want = `{"type":"about:blank","title":"Not Found","status":404,"request_id":"abc"}`
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Length", "5")
+			httpx.Problem{Status: http.StatusNotFound, Extensions: map[string]any{"request_id": "abc"}}.Respond(w)
+		}))
+		defer srv.Close()
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+		if err != nil {
+			t.Fatalf("request: %v", err)
+		}
+		resp, err := srv.Client().Do(req)
+		if err != nil {
+			t.Fatalf("do: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+
+		if string(body) != want {
+			t.Errorf("body = %q, want %q", body, want)
+		}
+		if !json.Valid(body) {
+			t.Errorf("body %q is not valid JSON", body)
+		}
+		if cl := resp.Header.Get("Content-Length"); cl != strconv.Itoa(len(want)) {
+			t.Errorf("Content-Length = %q, want %d — the stale 5 must not survive", cl, len(want))
+		}
+	})
 }
 
 func TestError(t *testing.T) {

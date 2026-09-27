@@ -4,6 +4,17 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- `Problem.Extensions` — RFC 9457 §3.2 extension members, written by `Respond` at the top level of the object after the standard members and sorted by key; an extension named like a standard member, compared case-insensitively, is ignored. Output without extensions is byte-identical to before. An extension value that cannot be marshaled makes `Respond` write the problem without its extensions
+- `ErrorMap.RespondRequest` and the `ErrorMap.Enrich` hook — one place to add request-scoped members (request ID, trace ID) to every problem the map writes: Problemer, registry match, and the bare 500. `Enrich` gets a private, non-nil `Extensions` map, so registered problems are never mutated; `Respond` is unchanged and never calls it
+- `Config.ErrorWriter` — opt-in: requests no route matches answer through it, 404 for an unknown path and 405 for a wrong method with ServeMux's `Allow` header kept, still wrapped by `Use` middleware. Matched routes, including a handler-written 404, are untouched; nil keeps ServeMux's plain-text responses. Costs one extra ServeMux lookup per request when set
+- `FuzzProblemRespond`, wired into `make fuzz`
+
+### Fixed
+
+- `Problem.Respond` removes a `Content-Length` header set by an earlier writer, which previously contradicted the problem body
+
 ## [0.2.0] - 2026-09-28
 
 ### Changed
