@@ -3,6 +3,8 @@ package httpx_test
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -10,16 +12,15 @@ import (
 	"github.com/Wigata-Intech/w-tools/httpx"
 )
 
-// FuzzProblemMarshalJSON feeds arbitrary members and one extension
-// through Problem.MarshalJSON. Invariants: never fail for string
-// extensions, always valid JSON, the standard members encode first and
-// exactly as without extensions, a standard-member name never overrides,
-// and any other extension key lands at the top level.
-func FuzzProblemMarshalJSON(f *testing.F) {
+// FuzzProblemRespond feeds arbitrary members and one extension through
+// Problem.Respond. Invariants: always valid JSON, the standard members
+// encode first and exactly as without extensions, a standard-member name
+// never overrides, and any other extension key lands at the top level.
+func FuzzProblemRespond(f *testing.F) {
 	f.Add("about:blank", "Not Found", 404, "", "", "request_id", "abc")
 	f.Add("", "", 0, "", "", "status", "200")
 	f.Add("https://example.com/p", "T", 422, "d", "/i", "TYPE", "x")
-	f.Add("<&>", "\xff", -1, "\"", "\\", "\xfe", " ")
+	f.Add("<&>", "\xff", 599, "\"", "\\", "\xfe", " ")
 	f.Add("", "", 500, "", "", "ſtatus", "long s folds to s")
 
 	standard := []string{"type", "title", "status", "detail", "instance"}
@@ -38,24 +39,28 @@ func FuzzProblemMarshalJSON(f *testing.F) {
 		return out
 	}
 
+	respond := func(p httpx.Problem) []byte {
+		rec := httptest.NewRecorder()
+		p.Respond(rec)
+		return rec.Body.Bytes()
+	}
+
 	f.Fuzz(func(t *testing.T, typ, title string, status int, detail, instance, key, value string) {
-		base := httpx.Problem{Type: typ, Title: title, Status: status, Detail: detail, Instance: instance}
-		plain, err := base.MarshalJSON()
-		if err != nil {
-			t.Fatalf("MarshalJSON() without extensions error = %v", err)
+		if status != 0 && (status < 100 || status > 999) {
+			return // not a status WriteHeader accepts
 		}
+
+		base := httpx.Problem{Type: typ, Title: title, Status: status, Detail: detail, Instance: instance}
+		plain := respond(base)
 
 		p := base
 		p.Extensions = map[string]any{key: value}
-		b, err := p.MarshalJSON()
-		if err != nil {
-			t.Fatalf("MarshalJSON() error = %v", err)
-		}
+		b := respond(p)
 		if !json.Valid(b) {
-			t.Fatalf("MarshalJSON() = %q, not valid JSON", b)
+			t.Fatalf("Respond() body = %q, not valid JSON", b)
 		}
 		if !bytes.HasPrefix(b, plain[:len(plain)-1]) {
-			t.Fatalf("MarshalJSON() = %q, does not open with the standard members %q", b, plain)
+			t.Fatalf("Respond() body = %q, does not open with the standard members %q", b, plain)
 		}
 
 		var got map[string]any
@@ -65,8 +70,12 @@ func FuzzProblemMarshalJSON(f *testing.F) {
 			t.Fatalf("decode: %v", err)
 		}
 
-		if got["status"] != json.Number(strconv.Itoa(status)) {
-			t.Fatalf("status = %v, want %d", got["status"], status)
+		wantStatus := status
+		if wantStatus == 0 {
+			wantStatus = http.StatusInternalServerError
+		}
+		if got["status"] != json.Number(strconv.Itoa(wantStatus)) {
+			t.Fatalf("status = %v, want %d", got["status"], wantStatus)
 		}
 		for name, v := range map[string]string{"type": typ, "title": title, "detail": detail, "instance": instance} {
 			if v == "" {
@@ -83,7 +92,7 @@ func FuzzProblemMarshalJSON(f *testing.F) {
 		}
 		if reserved {
 			if !bytes.Equal(b, plain) {
-				t.Fatalf("standard-member extension %q changed the output: %q, want %q", key, b, plain)
+				t.Fatalf("standard-member extension %q changed the body: %q, want %q", key, b, plain)
 			}
 			return
 		}

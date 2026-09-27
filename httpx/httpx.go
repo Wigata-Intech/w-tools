@@ -161,9 +161,11 @@ func (s *Server) build() http.Handler {
 	return s.handler
 }
 
-// unmatched serves mux, except that a request no pattern matches gets the
-// status ServeMux would have written — plus its Allow header — through
-// errorWriter instead of ServeMux's plain-text body.
+// unmatched serves mux, except that a request no pattern matches, and
+// that ServeMux would answer 404 or 405, gets that status — plus its
+// Allow header — through errorWriter instead of ServeMux's plain-text
+// body. Every other response, including ServeMux's path-cleaning
+// redirects, is ServeMux's own.
 func unmatched(mux *http.ServeMux, errorWriter ErrorWriter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h, pattern := mux.Handler(r)
@@ -174,6 +176,10 @@ func unmatched(mux *http.ServeMux, errorWriter ErrorWriter) http.Handler {
 
 		d := &discardWriter{header: http.Header{}}
 		h.ServeHTTP(d, r)
+		if d.status != http.StatusNotFound && d.status != http.StatusMethodNotAllowed {
+			mux.ServeHTTP(w, r)
+			return
+		}
 
 		if allow := d.header.Get("Allow"); allow != "" {
 			w.Header().Set("Allow", allow)

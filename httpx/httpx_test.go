@@ -298,6 +298,18 @@ func TestServerServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name:  "an unclean unmatched path is the stdlib redirect",
+			input: serveInput{method: http.MethodGet, target: "/a/../nope"},
+			expected: serveExpected{
+				status: http.StatusTemporaryRedirect,
+				header: http.Header{
+					"Content-Type": {"text/html; charset=utf-8"},
+					"Location":     {"/nope"},
+				},
+				body: "<a href=\"/nope\">Temporary Redirect</a>.\n\n",
+			},
+		},
+		{
 			name:  "with an ErrorWriter, matched routes keep their pattern and path values",
 			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/orders/ord_1"},
 			expected: serveExpected{
@@ -307,12 +319,48 @@ func TestServerServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name:  "with an ErrorWriter, an unclean path to a route keeps ServeMux's redirect",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/a/../ok"},
+			expected: serveExpected{
+				status: http.StatusTemporaryRedirect,
+				header: http.Header{
+					"Content-Type": {"text/html; charset=utf-8"},
+					"Location":     {"/ok"},
+				},
+				body: "<a href=\"/ok\">Temporary Redirect</a>.\n\n",
+			},
+		},
+		{
 			name:  "with an ErrorWriter, a handler-written 404 is untouched",
 			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/gone"},
 			expected: serveExpected{
 				status: http.StatusNotFound,
 				header: stdlibPlainText(""),
 				body:   "404 page not found\n",
+			},
+		},
+		{
+			name:  "with an ErrorWriter, an unclean unmatched path keeps ServeMux's redirect",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "/a/../nope"},
+			expected: serveExpected{
+				status: http.StatusTemporaryRedirect,
+				header: http.Header{
+					"Content-Type": {"text/html; charset=utf-8"},
+					"Location":     {"/nope"},
+				},
+				body: "<a href=\"/nope\">Temporary Redirect</a>.\n\n",
+			},
+		},
+		{
+			name:  "with an ErrorWriter, a double-slash unmatched path keeps ServeMux's redirect",
+			input: serveInput{errorWriter: true, method: http.MethodGet, target: "//nope"},
+			expected: serveExpected{
+				status: http.StatusTemporaryRedirect,
+				header: http.Header{
+					"Content-Type": {"text/html; charset=utf-8"},
+					"Location":     {"/nope"},
+				},
+				body: "<a href=\"/nope\">Temporary Redirect</a>.\n\n",
 			},
 		},
 		{
