@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -161,6 +162,61 @@ func FuzzIdempotency(f *testing.F) {
 		}
 		if executions != 1 {
 			t.Fatalf("mismatched duplicate executed handler %d times, want 1", executions)
+		}
+	})
+}
+
+// strictIDRe is StrictRequestID's documented rule as an independent oracle.
+var strictIDRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+
+// FuzzStrictRequestID feeds arbitrary inbound IDs through RequestID with
+// StrictRequestID. Invariants: never panic; StrictRequestID accepts
+// exactly the documented alphabet and length; an accepted ID is echoed
+// as-is, a rejected one never is — a fresh 32-hex ID replaces it.
+func FuzzStrictRequestID(f *testing.F) {
+	f.Add("a")
+	f.Add(strings.Repeat("aZ09._-x", 8))
+	f.Add(strings.Repeat("a", 65))
+	f.Add("bad id")
+	f.Add("<script>")
+	f.Add("a/b")
+	f.Add("é\x00\n")
+	f.Add("")
+
+	f.Fuzz(func(t *testing.T, inbound string) {
+		accepted := middleware.StrictRequestID(inbound)
+		if accepted != strictIDRe.MatchString(inbound) {
+			t.Fatalf("StrictRequestID(%q) = %t, disagrees with the documented rule", inbound, accepted)
+		}
+
+		var ctxID string
+		h := middleware.RequestID(middleware.RequestIDConfig{
+			Valid: middleware.StrictRequestID,
+		})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			ctxID = middleware.RequestIDFrom(r.Context())
+		}))
+
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+		if inbound != "" {
+			r.Header.Set(middleware.DefaultRequestIDHeader, inbound)
+		}
+
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, r)
+		echoed := rr.Header().Get(middleware.DefaultRequestIDHeader)
+
+		if echoed != ctxID {
+			t.Fatalf("echoed %q differs from ctx ID %q", echoed, ctxID)
+		}
+		if accepted {
+			if echoed != inbound {
+				t.Fatalf("accepted ID %q echoed as %q", inbound, echoed)
+			}
+
+			return
+		}
+		if len(echoed) != 32 || !hexRe.MatchString(echoed) {
+			t.Fatalf("rejected ID %q replaced by %q, want 32-char lowercase hex", inbound, echoed)
 		}
 	})
 }

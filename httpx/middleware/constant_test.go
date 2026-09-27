@@ -13,6 +13,9 @@ func TestConstants(t *testing.T) {
 		expected any
 	}{
 		{name: "DefaultRequestIDHeader is the conventional name", input: middleware.DefaultRequestIDHeader, expected: "X-Request-ID"},
+		{name: "DefaultContentSecurityPolicy loads and frames nothing", input: middleware.DefaultContentSecurityPolicy, expected: "default-src 'none'; frame-ancestors 'none'"},
+		{name: "DefaultReferrerPolicy sends no referrer", input: middleware.DefaultReferrerPolicy, expected: "no-referrer"},
+		{name: "OmitHeader is a dash", input: middleware.OmitHeader, expected: "-"},
 	}
 
 	for _, tt := range tests {
