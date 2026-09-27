@@ -8,7 +8,7 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 
 - `migrationx`: `Merge` combines several migration sources (a service's own plus library-owned embedded `fs.FS` sets) into one flat view for `New` — one timeline, one history table; directories and dot-files such as `.gitkeep` at each source's root are skipped, any other file still reaches `New`'s stray-file check, and the same file name in two sources fails with the exported `ErrDuplicateFile`
 - Struct binding: `Bind` recurses into untagged exported struct fields as sections, so a sectioned config (`Log`, `HTTP`, `Database`) binds in one call; flag names, env names, and flat config file keys come from the leaf field alone, exactly as for top-level fields, and a name declared in two sections panics like any duplicate — tagged structs, pointers to structs, and `flag.Value`/`encoding.TextUnmarshaler` types stay leaves
-- List flags: `FlagSet.StringList`/`StringListVar` and `FlagSet.PrefixList`/`PrefixListVar` (`[]netip.Prefix`), also bindable as `[]string` and `[]netip.Prefix` struct fields — comma-separated, whitespace around entries trimmed, a blank value is the empty list, an empty or malformed entry is rejected (exit 2); `FuzzListFlags` checks both against a mirror oracle
+- List flags: `FlagSet.StringList`/`StringListVar` and `FlagSet.PrefixList`/`PrefixListVar` (`[]netip.Prefix`), also bindable as `[]string` and `[]netip.Prefix` struct fields — comma-separated, whitespace around entries trimmed, a blank value is the empty list, an empty or malformed entry is rejected (exit 2), prefixes are kept as written (host bits included); `FuzzListFlags` checks both against a mirror oracle
 
 ## [0.2.0] - 2026-09-28
 

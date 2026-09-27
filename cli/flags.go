@@ -119,8 +119,11 @@ func (fs *FlagSet) Int64Var(p *int64, name string, value int64, usage string) {
 // PrefixList defines a []netip.Prefix flag with specified name, default
 // value, and usage string, parsed as StringList parses its value with
 // every entry parsed by netip.ParsePrefix; one malformed entry rejects
-// the whole value. The return value is the address of a []netip.Prefix
-// variable that stores the value of the flag.
+// the whole value. Entries are kept as written, host bits included —
+// 10.1.2.3/8 stays 10.1.2.3/8, not 10.0.0.0/8; Prefix.Contains matches
+// the same addresses either way, and Prefix.Masked gives the canonical
+// network. The return value is the address of a []netip.Prefix variable
+// that stores the value of the flag.
 func (fs *FlagSet) PrefixList(name string, value []netip.Prefix, usage string) *[]netip.Prefix {
 	p := new([]netip.Prefix)
 	fs.PrefixListVar(p, name, value, usage)
