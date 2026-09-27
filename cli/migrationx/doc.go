@@ -19,6 +19,20 @@
 // statements run outside any transaction, so the concurrent-runner
 // guarantee does not cover it — deploy those serially.
 //
+// On mysql, a no-transaction migration's statements can fail partway
+// through with no transaction to roll back, leaving the schema changed
+// but the history row absent or stale. The history table's dirty column
+// tracks this: the row is marked dirty before the statements run and
+// cleared on success, so a version a failed run left dirty stays visible
+// afterward. Up and Down refuse to run again while any version is dirty;
+// Status and Version report it (Migration.Dirty) without failing — they
+// take no lock, so a legitimate run in progress must not look like a
+// failure to either. Resolving a dirty version is an operator step this
+// package cannot automate: inspect and repair whatever the failed
+// statements left half-done, then clear the row — UPDATE the history
+// table setting dirty to 0, or delete the row if the migration never
+// really applied — before rerunning.
+//
 // A migration engine bug is a data incident, not a bug report: when in
 // doubt, this package stops.
 package migrationx

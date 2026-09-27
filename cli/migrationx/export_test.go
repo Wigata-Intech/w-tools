@@ -51,7 +51,7 @@ func RunExecRaw(ctx context.Context, m *Migrator, version int64) (bool, error) {
 		return false, err
 	}
 	defer func() { _ = conn.Close() }()
-	return m.execRaw(ctx, conn, version, []string{"SELECT 1"}, func() error { return nil })
+	return m.execRaw(ctx, conn, version, []string{"SELECT 1"}, nil, func() error { return nil })
 }
 
 // RunApply exposes one transactional apply: the in-tx probe skip fires
