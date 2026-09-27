@@ -95,9 +95,9 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/cli/migrationx
 cpu: Apple M2 Pro
-BenchmarkParseScript-10    	   30584	     39484 ns/op	   42320 B/op	     509 allocs/op
-BenchmarkLoad-10           	    6307	    191053 ns/op	  130206 B/op	    3443 allocs/op
-BenchmarkUpTen-10          	   25572	     47206 ns/op	   40045 B/op	     562 allocs/op
+BenchmarkParseScript-10    	   31846	     36977 ns/op	   42320 B/op	     509 allocs/op
+BenchmarkLoad-10           	    7239	    175905 ns/op	  130221 B/op	    3443 allocs/op
+BenchmarkUpTen-10          	   25144	     46353 ns/op	   40046 B/op	     562 allocs/op
 PASS
 ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	4.637s
 ```
@@ -106,8 +106,8 @@ ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	4.637s
 
 | Measure | Result |
 | ------- | ------ |
-| Scanning a 100-statement file (`BenchmarkParseScript`) | ~39 µs |
-| Loading + checksumming 100 migration pairs (`BenchmarkLoad`) | ~191 µs |
+| Scanning a 100-statement file (`BenchmarkParseScript`) | ~36 µs |
+| Loading + checksumming 100 migration pairs (`BenchmarkLoad`) | ~176 µs |
 | Applying ten migrations — transactions, probes, history (`BenchmarkUpTen`) | ~47 µs of engine overhead |
 
 Migrations run once per deploy; real cost is your SQL, not the engine. Fuzzing covers the two own-parsers — the statement scanner (mirror-oracle invariants) and the filename parser (round-trip invariants):

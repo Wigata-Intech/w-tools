@@ -148,54 +148,54 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/httpx
 cpu: Apple M2 Pro
-BenchmarkServeMuxBaseline-10    	11571783	       115.1 ns/op	      18 B/op	       2 allocs/op
-BenchmarkGroupRoute-10          	10483874	       108.1 ns/op	      18 B/op	       2 allocs/op
+BenchmarkServeMuxBaseline-10    	11720256	       103.5 ns/op	      18 B/op	       2 allocs/op
+BenchmarkGroupRoute-10          	11480323	       104.6 ns/op	      18 B/op	       2 allocs/op
 PASS
 ok  	github.com/Wigata-Intech/w-tools/httpx	4.004s
 PASS
-ok  	github.com/Wigata-Intech/w-tools/httpx/client	0.283s
+ok  	github.com/Wigata-Intech/w-tools/httpx/client	0.348s
 goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/httpx/middleware
 cpu: Apple M2 Pro
-BenchmarkBareHandler-10               	 7669458	       161.7 ns/op	     512 B/op	       3 allocs/op
-BenchmarkLogger-10                    	 1000000	      1152 ns/op	     673 B/op	       8 allocs/op
-BenchmarkLoggerCapture-10             	  404302	      2739 ns/op	    2293 B/op	      40 allocs/op
-BenchmarkCanonicalChain-10            	  430562	      2866 ns/op	    2291 B/op	      35 allocs/op
-BenchmarkCanonicalChainParallel-10    	  412689	      2928 ns/op	    2296 B/op	      35 allocs/op
-BenchmarkRateLimitParallel-10         	 3245058	       368.7 ns/op	     512 B/op	       3 allocs/op
-BenchmarkIdempotencyFirst-10          	  372435	      2938 ns/op	    7298 B/op	      38 allocs/op
-BenchmarkIdempotencyReplay-10         	  379066	      2993 ns/op	    7391 B/op	      35 allocs/op
+BenchmarkBareHandler-10               	 7553701	       146.4 ns/op	     512 B/op	       3 allocs/op
+BenchmarkLogger-10                    	 1000000	      1076 ns/op	     673 B/op	       8 allocs/op
+BenchmarkLoggerCapture-10             	  484046	      2445 ns/op	    2292 B/op	      40 allocs/op
+BenchmarkCanonicalChain-10            	  444656	      2696 ns/op	    2291 B/op	      35 allocs/op
+BenchmarkCanonicalChainParallel-10    	  392004	      3030 ns/op	    2297 B/op	      35 allocs/op
+BenchmarkRateLimitParallel-10         	 3034630	       420.2 ns/op	     512 B/op	       3 allocs/op
+BenchmarkIdempotencyFirst-10          	  333657	      3176 ns/op	    7306 B/op	      38 allocs/op
+BenchmarkIdempotencyReplay-10         	  344046	      3650 ns/op	    7391 B/op	      35 allocs/op
 PASS
-ok  	github.com/Wigata-Intech/w-tools/httpx/middleware	10.351s
+ok  	github.com/Wigata-Intech/w-tools/httpx/middleware	11.100s
 ```
 
 </details>
 
 | Situation | ns/op | allocs/op | Meaning for you |
 | --------- | ----- | --------- | --------------- |
-| Raw `ServeMux` routing | ~115 | 2 | The stdlib baseline |
-| The same route through nested groups | ~108 | 2 | **Grouping is free** — parity within noise, identical allocations, because groups are registration-time sugar |
-| Request floor (build + bare handler) | ~162 | 3 | What the middleware numbers subtract |
-| `Logger` middleware, capture off | ~1,152 | 8 | ~1µs per request — almost all of it the JSON access line itself |
-| `Logger` with request-body capture | ~2,739 | 40 | The opt-in costs ~1.6µs more: capture, parse, structured attr |
-| Full canonical chain (RealIP → RequestID → Trace → Logger → Recover) | ~2,866 | 35 | Your whole production identity stack: ~3µs of overhead per request |
+| Raw `ServeMux` routing | ~104 | 2 | The stdlib baseline |
+| The same route through nested groups | ~105 | 2 | **Grouping is free** — parity within noise, identical allocations, because groups are registration-time sugar |
+| Request floor (build + bare handler) | ~146 | 3 | What the middleware numbers subtract |
+| `Logger` middleware, capture off | ~1,076 | 8 | ~1µs per request — almost all of it the JSON access line itself |
+| `Logger` with request-body capture | ~2,445 | 40 | The opt-in costs ~1.4µs more: capture, parse, structured attr |
+| Full canonical chain (RealIP → RequestID → Trace → Logger → Recover) | ~2,696 | 35 | Your whole production identity stack: ~3µs of overhead per request |
 
 The practical takeaway: the expensive thing in the stack is writing a log line, not the middleware machinery around it — and even the everything-on chain costs less than 0.3% of a 1ms handler.
 
 Opting into `Config.ErrorWriter` costs one extra ServeMux lookup per request: the server asks the mux whether a pattern matches before serving, so routing runs twice. Left nil, the server serves the mux directly and pays nothing.
 
-Under concurrency the chain stays in one band (~2.5–3.6µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~369 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
+Under concurrency the chain stays in one band (~2.5–3.2µs/op from 1 to 8 parallel callers — throughput scales with cores) and `RateLimit`'s single mutex stays sub-microsecond at 8 concurrent clients (~440 ns/op). Parallel variants of these benchmarks ship in the suite; run them with `-cpu 1,4,8`.
 
-`Idempotency` adds ~2.9µs for the winning request (claim, capture, store) and serves a duplicate's replay in ~2.8µs without touching the handler — both invisible next to any real handler. Measured on the same machine, go1.26.8:
+`Idempotency` adds ~2.7µs for the winning request (claim, capture, store) and serves a duplicate's replay in ~2.6µs without touching the handler — both invisible next to any real handler. Measured on the same machine, go1.26.8:
 
 ```text
 $ cd middleware && go test -run='^$' -bench=Idempotency -benchmem .
-BenchmarkIdempotencyFirst-10     	  414127	      2910 ns/op	    7290 B/op	      38 allocs/op
-BenchmarkIdempotencyReplay-10    	  380047	      2843 ns/op	    7390 B/op	      35 allocs/op
+BenchmarkIdempotencyFirst-10     	  450759	      2659 ns/op	    7304 B/op	      38 allocs/op
+BenchmarkIdempotencyReplay-10    	  449562	      2628 ns/op	    7391 B/op	      35 allocs/op
 ```
 
-The wire-input parsers (RealIP's forwarding headers, the W3C traceparent) and the strict request-ID validator are fuzzed:
+The wire-input parsers (RealIP's forwarding headers, the W3C traceparent), the strict request-ID validator, and the problem encoder are fuzzed:
 
 <details>
 <summary>Fuzzing — commands and raw output</summary>
@@ -204,6 +204,7 @@ The wire-input parsers (RealIP's forwarding headers, the W3C traceparent) and th
 $ go test -run='^$' -fuzz=FuzzRealIP -fuzztime=10s .
 $ go test -run='^$' -fuzz=FuzzTraceparent -fuzztime=10s .
 $ go test -run='^$' -fuzz=FuzzStrictRequestID -fuzztime=10s .
+$ cd .. && go test -run='^$' -fuzz=FuzzProblemRespond -fuzztime=10s .
 ```
 
 </details>

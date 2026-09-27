@@ -122,27 +122,27 @@ goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/cli
 cpu: Apple M2 Pro
-BenchmarkExecute-10                	  361466	      2847 ns/op	    4488 B/op	      69 allocs/op
-BenchmarkExecuteEnvAndConfig-10    	   59241	     20252 ns/op	    7320 B/op	      95 allocs/op
+BenchmarkExecute-10                	  439896	      2627 ns/op	    4488 B/op	      69 allocs/op
+BenchmarkExecuteEnvAndConfig-10    	   66668	     18041 ns/op	    7320 B/op	      95 allocs/op
 PASS
-ok  	github.com/Wigata-Intech/w-tools/cli	2.710s
+ok  	github.com/Wigata-Intech/w-tools/cli	3.473s
 goos: darwin
 goarch: arm64
 pkg: github.com/Wigata-Intech/w-tools/cli/migrationx
 cpu: Apple M2 Pro
-BenchmarkParseScript-10    	   29581	     37752 ns/op	   42320 B/op	     509 allocs/op
-BenchmarkLoad-10           	    6304	    183409 ns/op	  130201 B/op	    3443 allocs/op
-BenchmarkUpTen-10          	   25263	     47847 ns/op	   40046 B/op	     562 allocs/op
+BenchmarkParseScript-10    	   31178	     36113 ns/op	   42320 B/op	     509 allocs/op
+BenchmarkLoad-10           	    7195	    176184 ns/op	  130221 B/op	    3443 allocs/op
+BenchmarkUpTen-10          	   24756	     47426 ns/op	   40047 B/op	     562 allocs/op
 PASS
-ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	4.708s
+ok  	github.com/Wigata-Intech/w-tools/cli/migrationx	4.806s
 ```
 
 </details>
 
 | Measure | Result |
 | ------- | ------ |
-| Full dispatch (subcommand + flag), `BenchmarkExecute` | ~2.8 µs, 69 allocs — once per process |
-| Every layer active (env + config file read/decoded), `BenchmarkExecuteEnvAndConfig` | ~20 µs, 95 allocs — once per process |
+| Full dispatch (subcommand + flag), `BenchmarkExecute` | ~2.6 µs, 69 allocs — once per process |
+| Every layer active (env + config file read/decoded), `BenchmarkExecuteEnvAndConfig` | ~18 µs, 95 allocs — once per process |
 | Binary size: hello-world `main` | 1.6 MB (`-trimpath -ldflags "-s -w"`) |
 | the same `main` on **cli** | 2.1 MB — **+0.5 MB** |
 | the same `main` on cobra + viper | 4.7 MB — **+3.1 MB**, 6× the cli delta |

@@ -4,6 +4,8 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-28
+
 ### Added
 
 - `migrationx`: `Merge` combines several migration sources (a service's own plus library-owned embedded `fs.FS` sets) into one flat view for `New` — one timeline, one history table; directories and dot-files such as `.gitkeep` at each source's root are skipped, any other file still reaches `New`'s stray-file check, and the same file name in two sources fails with the exported `ErrDuplicateFile`

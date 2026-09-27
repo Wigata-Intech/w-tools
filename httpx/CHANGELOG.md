@@ -4,6 +4,8 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-28
+
 ### Added
 
 - `Problem.Extensions` — RFC 9457 §3.2 extension members, written by `Respond` at the top level of the object after the standard members and sorted by key; an extension named like a standard member, compared case-insensitively, is ignored. Output without extensions is byte-identical to before. An extension value that cannot be marshaled makes `Respond` write the problem without its extensions
@@ -13,6 +15,11 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 - `middleware.RequestIDConfig.Valid` — screens non-empty inbound request IDs; a rejected ID is treated as absent (a fresh 32-hex ID is minted, the inbound value is never echoed or stored, and the request header `next` sees carries the minted ID instead — the caller's request is not modified). Nil keeps the existing rule (at most 128 bytes). `middleware.StrictRequestID` is the ready-made strict rule: 1–64 characters of `[A-Za-z0-9._-]`, fuzzed by `FuzzStrictRequestID`
 - `middleware.SecureHeaders` — sets `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` before calling next, so routing 404/405s, gate short-circuits and 500s from an inner `Recover` carry them. HSTS is opt-in (`HSTSMaxAge`, with `HSTSIncludeSubDomains` and `HSTSPreload`); each header is overridable, and `OmitHeader` suppresses one. Defaults exported as `DefaultContentSecurityPolicy` and `DefaultReferrerPolicy`. Canonical order extended: `… Trace → SecureHeaders → Logger …`
 - `middleware.BodyLimit` — a declared `Content-Length` over `Max` is answered 413 (`request body too large`, via `ErrorWriter`, RFC 9457 by default) before next runs, so as outer middleware it wins over routing 404/405; every other body is wrapped in `http.MaxBytesReader`, capping chunked and undeclared bodies too. `Max <= 0` means `httpx.DefaultMaxBind`. Canonical order extended: `… RateLimit → BodyLimit → Idempotency`
+
+### Changed
+
+- `Problem` carries a map field (`Extensions`), so `Problem` values are no longer comparable with `==` or usable as map keys. Encoding is unchanged: `Problem` has no `MarshalJSON`, and a struct embedding it encodes its own fields as before
+- `middleware.RequestID`: an inbound value that fails validation — including one over 128 bytes under a nil `Valid` — is also replaced in the request header `next` sees; the response and the context are unchanged
 
 ### Fixed
 

@@ -4,13 +4,14 @@ Where each package is and where it's going. ✅ delivered · 🚧 agreed and in 
 
 ## cli
 
-Shipped as `cli/v0.1.0`, 2026-08-14, `migrationx` included; `cli/v0.2.0` 2026-09-28.
+Shipped as `cli/v0.1.0`, 2026-08-14, `migrationx` included; `cli/v0.2.0` and `cli/v0.2.1` 2026-09-28.
 
 | Status | Item |
 | ------ | ---- |
 | ✅ | Stdlib-only command/flag/env framework for service entrypoints: command tree, precedence chain, struct binding, generated help — shipped as `cli/v0.1.0` |
 | ✅ | `cli/migrationx` — SQL migrations on `database/sql` + `embed`: timestamp-versioned files with checksums and a migration lock; drivers stay consumer-side; shipped in `cli/v0.1.0` — engine, scanner, locks, migrate command |
 | ✅ | `migrationx` hardening from the v0.1.0 review: orphaned migrations reported inline by `Status` (`Migration.Orphaned`), `UpTo`/`DownTo` warn on unknown targets, mysql lock scoped to `DATABASE()`, dirty-state tracking for no-transaction mysql migrations (`Migration.Dirty`, auto-healed history column) — shipped in `cli/v0.2.0` |
+| ✅ | Sectioned configs and list flags: `Bind` recurses into untagged struct sections (leaf-named flags, flat config keys), `StringList`/`PrefixList` (`[]string`, `[]netip.Prefix`) as flags and bindable fields; `migrationx.Merge` joins library-owned embedded migrations into the service's timeline — requested by the first production consumer, shipped in `cli/v0.2.1` |
 | 💡 | Live config reload — *proposed, not approved*: would supersede the design's deliberate omissions; shape if accepted is SIGHUP-triggered re-resolution with an `OnReload` callback, never file watching |
 
 ## httpx
@@ -28,6 +29,7 @@ Design approved 2026-08-11; landing in phases, each a reviewed PR.
 | ✅ | Outbound client: tuned pooling, mandatory timeout, circuit-breaker hook, traceparent propagation, and opt-in redaction-inheriting request/response logging |
 | ✅ | `x/circuitbreaker`: three-state breaker implementing the client's `Breaker` hook — experimental, own module, CI-proven fail-fast via the examples' breaker demo |
 | ✅ | Idempotency-Key middleware (server) — key-value `Store` interface mapping 1:1 to Redis commands (bounded `MemoryStore` in-package), response capture/replay with configurable duplicate policy, key prefix, payload-mismatch 422, everything fails closed — shipped in `httpx/v0.1.2`. Idempotency-aware client retries stay a later, separate item |
+| ✅ | Consumer-driven hardening: `Problem.Extensions` with `ErrorMap.Enrich`/`RespondRequest` (a request ID in every error body), `Config.ErrorWriter` for ServeMux's own 404/405, request-ID validation (`StrictRequestID`), `SecureHeaders`, and `BodyLimit` — requested by the first production consumer, shipped in `httpx/v0.2.1` |
 | 💡 | `Debug` convenience constructor — the internal pprof server the README recipe builds by hand, if the recipe proves too repetitive across services |
 | 💡 | Distributed rate limiting: a store-backed `Limiter` (Redis), likely under `x/` |
 | 💡 | Distributed circuit breaking — *uncertain on purpose*: the seam already exists (any Redis-backed implementation of `client.Breaker` plugs in today), and per-instance breaking is usually the correct semantic; if cluster coordination is ever proven necessary, the shape is local breakers sharing observations asynchronously and deciding locally — never a network hop inside `Allow` |
