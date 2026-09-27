@@ -181,8 +181,7 @@ func Idempotency(cfg IdempotencyConfig) httpx.Middleware {
 			r.Body = http.MaxBytesReader(w, r.Body, maxReqBody)
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
-				var tooLarge *http.MaxBytesError
-				if errors.As(err, &tooLarge) {
+				if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 					errorWriter(w, r, http.StatusRequestEntityTooLarge, "request body exceeds the idempotency fingerprint cap")
 					return
 				}

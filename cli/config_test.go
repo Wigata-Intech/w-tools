@@ -69,7 +69,7 @@ var (
 // cases.
 func cfgKVDecoder(data []byte) (map[string]string, error) {
 	values := map[string]string{}
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		k, v, ok := strings.Cut(line, "=")
 		if !ok {
 			return nil, fmt.Errorf("%w %q", errCfgBadLine, line)

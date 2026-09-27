@@ -157,14 +157,12 @@ func TestWrapContextAttrs(t *testing.T) {
 		})
 		var wg sync.WaitGroup
 		for range 8 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				ctx := context.WithValue(context.Background(), requestIDKey{}, "req-c")
 				for range 50 {
 					log.Info(ctx, "m")
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		if got := bytes.Count(buf.Bytes(), []byte("\n")); got != 400 {

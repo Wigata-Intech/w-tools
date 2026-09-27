@@ -191,11 +191,9 @@ func testMemoryStoreConcurrentSetNX(t *testing.T) {
 	var wg sync.WaitGroup
 	claims := make([]bool, n)
 	for i := range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			claims[i], _ = s.SetNX(ctx, "k", []byte("v"), time.Minute)
-		}()
+		})
 	}
 	wg.Wait()
 

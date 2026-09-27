@@ -247,15 +247,13 @@ func TestServerServeHTTP(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for range 8 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				rec := httptest.NewRecorder()
 				s.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ok", nil))
 				if rec.Code != http.StatusOK {
 					t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
 				}
-			}()
+			})
 		}
 		wg.Wait()
 	})

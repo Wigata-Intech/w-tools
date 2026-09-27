@@ -30,7 +30,7 @@ func benchRedact() logger.RedactConfig {
 
 // BenchmarkRawSlog is the baseline every other number is judged against.
 func BenchmarkRawSlog(b *testing.B) {
-	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil)) //nolint:sloglint // the baseline measures real JSON encoding
 	b.ReportAllocs()
 	for range b.N {
 		log.Info("payment created", "order_id", "ord_123", "amount_jpy", 4980, "region", "ap-northeast-1", "attempt", 1, "ok", true)

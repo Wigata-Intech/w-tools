@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"maps"
 	"os/user"
@@ -1237,7 +1236,7 @@ func TestVersion(t *testing.T) {
 // subtests.
 func mxNewMigrator(t *testing.T, db *sql.DB, dialect migrationx.Dialect, files map[string]string) *migrationx.Migrator {
 	t.Helper()
-	m, err := migrationx.New(db, mxFS(files), migrationx.Config{Dialect: dialect, Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	m, err := migrationx.New(db, mxFS(files), migrationx.Config{Dialect: dialect, Log: slog.New(slog.DiscardHandler)})
 	if err != nil {
 		t.Fatal(err)
 	}

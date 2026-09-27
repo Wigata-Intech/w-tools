@@ -98,8 +98,7 @@ func TestOutput(t *testing.T) {
 		if err == nil {
 			t.Fatal("Output() error = nil, want start failure")
 		}
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
+		if _, ok := errors.AsType[*ssh.ExitError](err); ok {
 			t.Errorf("Output() error = %v, want a non-exit start failure", err)
 		}
 		if res.ExitCode != -1 {

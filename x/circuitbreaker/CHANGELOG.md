@@ -4,6 +4,10 @@ All notable changes to `x/circuitbreaker` are documented here. Format follows [K
 
 ## [Unreleased]
 
+### Changed
+
+- Minimum Go version raised to 1.26.8 (`go.mod` directive); Go 1.25 and earlier are out of upstream support
+
 ## [0.1.1] - 2026-08-14
 
 ### Changed

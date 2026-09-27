@@ -220,8 +220,7 @@ func TestKnownHosts(t *testing.T) {
 		if cb != nil {
 			t.Error("callback = non-nil, want nil")
 		}
-		var pe *fs.PathError
-		if !errors.As(err, &pe) {
+		if _, ok := errors.AsType[*fs.PathError](err); !ok {
 			t.Fatalf("KnownHosts() error = %v, want *fs.PathError", err)
 		}
 	})
@@ -232,8 +231,7 @@ func TestKnownHosts(t *testing.T) {
 		if cb != nil {
 			t.Error("callback = non-nil, want nil")
 		}
-		var pe *fs.PathError
-		if !errors.As(err, &pe) {
+		if _, ok := errors.AsType[*fs.PathError](err); !ok {
 			t.Fatalf("KnownHosts() error = %v, want *fs.PathError", err)
 		}
 	})
@@ -439,8 +437,7 @@ func TestTOFU(t *testing.T) {
 		if cb != nil {
 			t.Error("callback = non-nil, want nil")
 		}
-		var pe *fs.PathError
-		if !errors.As(err, &pe) {
+		if _, ok := errors.AsType[*fs.PathError](err); !ok {
 			t.Fatalf("TOFU() error = %v, want *fs.PathError", err)
 		}
 	})

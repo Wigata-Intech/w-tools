@@ -239,8 +239,7 @@ func (c *Client) emit(req *http.Request, resp *http.Response, err error, elapsed
 
 	if err != nil {
 		msg := err.Error()
-		var urlErr *url.Error
-		if errors.As(err, &urlErr) {
+		if urlErr, ok := errors.AsType[*url.Error](err); ok {
 			msg = urlErr.Err.Error() // the URL (and its query) already ride in dedicated attrs
 		}
 		attrs = append(attrs, "error", msg)

@@ -30,7 +30,7 @@ func benchOK() http.HandlerFunc {
 }
 
 func discardLogger() *slog.Logger {
-	return slog.New(slog.NewJSONHandler(io.Discard, nil))
+	return slog.New(slog.NewJSONHandler(io.Discard, nil)) //nolint:sloglint // the published numbers include real JSON encoding
 }
 
 func benchServe(b *testing.B, h http.Handler, body string) {

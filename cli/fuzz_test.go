@@ -139,7 +139,7 @@ func FuzzDecodeJSON(f *testing.F) {
 func fuzzDotEnvMirror(data []byte) map[string]string {
 	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 	pairs := map[string]string{}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(strings.TrimRight(line, "\r"))
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

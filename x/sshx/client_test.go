@@ -187,8 +187,7 @@ func TestDial(t *testing.T) {
 		if de.Stage != sshx.StageHostKey {
 			t.Errorf("Stage = %q, want %q", de.Stage, sshx.StageHostKey)
 		}
-		var unknown *sshx.UnknownHostKeyError
-		if !errors.As(err, &unknown) {
+		if _, ok := errors.AsType[*sshx.UnknownHostKeyError](err); !ok {
 			t.Fatalf("Dial() error = %v, want wrapped *UnknownHostKeyError", err)
 		}
 	})
@@ -244,8 +243,7 @@ func TestDial(t *testing.T) {
 		}
 		cancel()
 		err = <-errCh
-		var de *sshx.DialError
-		if !errors.As(err, &de) {
+		if _, ok := errors.AsType[*sshx.DialError](err); !ok {
 			t.Fatalf("Dial() error = %v, want *DialError", err)
 		}
 		if !errors.Is(err, context.Canceled) {

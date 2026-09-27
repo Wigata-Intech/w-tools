@@ -161,15 +161,13 @@ func TestErrorMapRespond(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for range 8 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				rec := httptest.NewRecorder()
 				m.Respond(rec, fmt.Errorf("wrapped: %w", errNotFound))
 				if rec.Code != http.StatusNotFound {
 					t.Errorf("status = %d, want 404", rec.Code)
 				}
-			}()
+			})
 		}
 		wg.Wait()
 	})

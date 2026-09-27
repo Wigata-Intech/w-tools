@@ -437,8 +437,7 @@ func TestManagedOutput(t *testing.T) {
 		m := newReadyManaged(t, p, s, log)
 
 		res, err := m.Output(context.Background(), "fail")
-		var exitErr *ssh.ExitError
-		if !errors.As(err, &exitErr) {
+		if _, ok := errors.AsType[*ssh.ExitError](err); !ok {
 			t.Fatalf("Output() error = %v, want *ssh.ExitError", err)
 		}
 		if res.ExitCode != 3 {

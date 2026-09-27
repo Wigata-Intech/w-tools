@@ -190,13 +190,11 @@ func assertBind(t *testing.T, input bindInput, expected bindExpected) {
 			t.Fatalf("Bind() error = %v, want errors.Is %v", err, expected.errIs)
 		}
 	case expected.maxBytesErr:
-		var mbe *http.MaxBytesError
-		if !errors.As(err, &mbe) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); !ok {
 			t.Fatalf("Bind() error = %v, want *http.MaxBytesError", err)
 		}
 	case expected.jsonSyntax:
-		var se *json.SyntaxError
-		if !errors.As(err, &se) {
+		if _, ok := errors.AsType[*json.SyntaxError](err); !ok {
 			t.Fatalf("Bind() error = %v, want *json.SyntaxError", err)
 		}
 	default:
