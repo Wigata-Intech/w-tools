@@ -1,14 +1,20 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"io"
+	"net/netip"
+	"strings"
 	"time"
 )
 
+var errEmptyListEntry = errors.New("empty list entry")
+
 // FlagSet declares a command's flags. It mirrors the flag.FlagSet
 // constructors exactly — String, Bool, Int, Int64, Float64, Duration,
-// their *Var forms, and Var — and adds only Secret. Values set from the
+// their *Var forms, and Var — and adds the list flags StringList and
+// PrefixList with their *Var forms, plus Secret. Values set from the
 // environment or a config file flow through the same flag.Value.Set path
 // as command-line input.
 type FlagSet struct {
@@ -110,6 +116,29 @@ func (fs *FlagSet) Int64Var(p *int64, name string, value int64, usage string) {
 	fs.inner.Int64Var(p, name, value, usage)
 }
 
+// PrefixList defines a []netip.Prefix flag with specified name, default
+// value, and usage string, parsed as StringList parses its value with
+// every entry parsed by netip.ParsePrefix; one malformed entry rejects
+// the whole value. Entries are kept as written, host bits included —
+// 10.1.2.3/8 stays 10.1.2.3/8, not 10.0.0.0/8; Prefix.Contains matches
+// the same addresses either way, and Prefix.Masked gives the canonical
+// network. The return value is the address of a []netip.Prefix variable
+// that stores the value of the flag.
+func (fs *FlagSet) PrefixList(name string, value []netip.Prefix, usage string) *[]netip.Prefix {
+	p := new([]netip.Prefix)
+	fs.PrefixListVar(p, name, value, usage)
+	return p
+}
+
+// PrefixListVar defines a []netip.Prefix flag with specified name,
+// default value, and usage string, parsed as PrefixList documents. The
+// argument p points to a []netip.Prefix variable in which to store the
+// value of the flag.
+func (fs *FlagSet) PrefixListVar(p *[]netip.Prefix, name string, value []netip.Prefix, usage string) {
+	*p = value
+	fs.Var((*prefixListValue)(p), name, usage)
+}
+
 // String defines a string flag with specified name, default value, and
 // usage string. The return value is the address of a string variable
 // that stores the value of the flag.
@@ -124,6 +153,28 @@ func (fs *FlagSet) String(name, value, usage string) *string {
 func (fs *FlagSet) StringVar(p *string, name, value, usage string) {
 	fs.zero[name] = value == ""
 	fs.inner.StringVar(p, name, value, usage)
+}
+
+// StringList defines a []string flag with specified name, default
+// value, and usage string. The value is comma-separated with whitespace
+// around each entry trimmed; an empty or all-whitespace value sets an
+// empty, non-nil list, and an empty entry ("a,,b", "a,") is an error.
+// Each Set replaces the whole list, so a repeated flag keeps its last
+// value. The return value is the address of a []string variable that
+// stores the value of the flag.
+func (fs *FlagSet) StringList(name string, value []string, usage string) *[]string {
+	p := new([]string)
+	fs.StringListVar(p, name, value, usage)
+	return p
+}
+
+// StringListVar defines a []string flag with specified name, default
+// value, and usage string, parsed as StringList documents. The argument
+// p points to a []string variable in which to store the value of the
+// flag.
+func (fs *FlagSet) StringListVar(p *[]string, name string, value []string, usage string) {
+	*p = value
+	fs.Var((*stringListValue)(p), name, usage)
 }
 
 // Var defines a flag with the specified name and usage string, backed by
@@ -141,4 +192,63 @@ func (fs *FlagSet) Secret(name string) {
 		panic("cli: Secret on undeclared flag: -" + name)
 	}
 	fs.secret[name] = true
+}
+
+// stringListValue is the flag.Value behind StringList.
+type stringListValue []string
+
+func (v *stringListValue) Set(s string) error {
+	entries, err := splitList(s)
+	if err != nil {
+		return err
+	}
+	*v = entries
+	return nil
+}
+
+func (v *stringListValue) String() string {
+	return strings.Join(*v, ",")
+}
+
+// prefixListValue is the flag.Value behind PrefixList.
+type prefixListValue []netip.Prefix
+
+func (v *prefixListValue) Set(s string) error {
+	entries, err := splitList(s)
+	if err != nil {
+		return err
+	}
+	prefixes := make([]netip.Prefix, len(entries))
+	for i, entry := range entries {
+		if prefixes[i], err = netip.ParsePrefix(entry); err != nil {
+			return err
+		}
+	}
+	*v = prefixes
+	return nil
+}
+
+func (v *prefixListValue) String() string {
+	entries := make([]string, len(*v))
+	for i, p := range *v {
+		entries[i] = p.String()
+	}
+	return strings.Join(entries, ",")
+}
+
+// splitList splits a comma-separated list, trimming whitespace around
+// each entry. A blank value is the empty, non-nil list; an empty entry
+// is errEmptyListEntry.
+func splitList(s string) ([]string, error) {
+	if strings.TrimSpace(s) == "" {
+		return []string{}, nil
+	}
+	entries := strings.Split(s, ",")
+	for i, entry := range entries {
+		entries[i] = strings.TrimSpace(entry)
+		if entries[i] == "" {
+			return nil, errEmptyListEntry
+		}
+	}
+	return entries, nil
 }

@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"encoding"
 	"flag"
 	"fmt"
+	"net/netip"
 	"reflect"
 	"strconv"
 	"strings"
@@ -31,10 +33,29 @@ import (
 // contradictory and panics at declaration.
 //
 // Supported field types: string, bool, int, int64, float64,
-// time.Duration, and any field whose pointer implements flag.Value.
-// Anything else panics at declaration — a programmer error, caught at
-// boot. Unexported fields are skipped. A required field must start at
-// its zero value.
+// time.Duration, []string and []netip.Prefix (comma-separated lists, as
+// StringList and PrefixList parse them), and any field whose pointer
+// implements flag.Value. Anything else panics at declaration — a
+// programmer error, caught at boot. Unexported fields are skipped. A
+// required field must start at its zero value.
+//
+// An exported struct field without a `cli` tag is a section: Bind
+// recurses into it and declares its fields with the same rules. Sections
+// only group fields — a flag name comes from the leaf field alone, never
+// from the sections around it, so the flag namespace, the environment
+// names, and the flat config file keys stay exactly as for top-level
+// fields; a name declared twice across sections panics like any other
+// duplicate. A struct whose pointer implements flag.Value or
+// encoding.TextUnmarshaler (time.Time, netip.Prefix) is never a section,
+// and a tagged struct field or a pointer-to-struct field is a leaf, so
+// each binds or panics as it would at top level.
+//
+//	type Config struct {
+//	    HTTP struct {
+//	        Addr    string         `cli:"http-addr" default:":8080"`
+//	        Trusted []netip.Prefix `cli:"trusted-proxies"`
+//	    }
+//	}
 //
 // Bind assumes one Execute per process: without a default tag the
 // field's current value is the default, so re-executing the same tree
@@ -44,25 +65,34 @@ func (fs *FlagSet) Bind(v any) {
 	if rv.Kind() != reflect.Pointer || rv.IsNil() || rv.Elem().Kind() != reflect.Struct {
 		panic("cli: Bind requires a non-nil pointer to a struct")
 	}
-	rv = rv.Elem()
-	rt := rv.Type()
+	fs.bindStruct(rv.Elem(), "")
+}
 
+// bindStruct declares the fields of the struct rv, recursing into
+// sections; path prefixes field names in panic messages ("HTTP.").
+func (fs *FlagSet) bindStruct(rv reflect.Value, path string) {
+	rt := rv.Type()
 	for i := range rt.NumField() {
 		field := rt.Field(i)
 		if !field.IsExported() {
 			continue
 		}
-		tag := parseBindTag(field)
+		fieldName := path + field.Name
+		if isSection(field, rv.Field(i)) {
+			fs.bindStruct(rv.Field(i), fieldName+".")
+			continue
+		}
+		tag := parseBindTag(field, fieldName)
 		if tag.name == "-" {
 			continue
 		}
 
 		def, hasDef := field.Tag.Lookup("default")
 		if hasDef && tag.required {
-			panic("cli: Bind field " + field.Name + ": required and default are contradictory")
+			panic("cli: Bind field " + fieldName + ": required and default are contradictory")
 		}
 
-		fs.declareField(rv.Field(i), field.Name, tag.name, def, hasDef, field.Tag.Get("usage"))
+		fs.declareField(rv.Field(i), fieldName, tag.name, def, hasDef, field.Tag.Get("usage"))
 		if tag.secret {
 			fs.Secret(tag.name)
 		}
@@ -70,6 +100,20 @@ func (fs *FlagSet) Bind(v any) {
 			fs.Required(tag.name)
 		}
 	}
+}
+
+// isSection reports whether Bind recurses into a field: an untagged
+// struct whose pointer implements neither flag.Value nor
+// encoding.TextUnmarshaler.
+func isSection(field reflect.StructField, fv reflect.Value) bool {
+	if _, tagged := field.Tag.Lookup("cli"); tagged || field.Type.Kind() != reflect.Struct {
+		return false
+	}
+	switch fv.Addr().Interface().(type) {
+	case flag.Value, encoding.TextUnmarshaler:
+		return false
+	}
+	return true
 }
 
 // Required marks a declared flag as mandatory: unless some layer —
@@ -145,6 +189,20 @@ func (fs *FlagSet) declareField(fv reflect.Value, fieldName, name, def string, h
 			*p = f
 		}
 		fs.Float64Var(p, name, *p, usage)
+	case *[]string:
+		if hasDef {
+			if err := (*stringListValue)(p).Set(def); err != nil {
+				bad(err)
+			}
+		}
+		fs.StringListVar(p, name, *p, usage)
+	case *[]netip.Prefix:
+		if hasDef {
+			if err := (*prefixListValue)(p).Set(def); err != nil {
+				bad(err)
+			}
+		}
+		fs.PrefixListVar(p, name, *p, usage)
 	default:
 		value, ok := p.(flag.Value)
 		if !ok {
@@ -167,7 +225,7 @@ type bindTag struct {
 }
 
 // parseBindTag reads the `cli` tag: name, then comma-separated options.
-func parseBindTag(field reflect.StructField) bindTag {
+func parseBindTag(field reflect.StructField, fieldName string) bindTag {
 	name, opts, _ := strings.Cut(field.Tag.Get("cli"), ",")
 	if name == "" {
 		name = kebab(field.Name)
@@ -182,7 +240,7 @@ func parseBindTag(field reflect.StructField) bindTag {
 		case "required":
 			tag.required = true
 		default:
-			panic("cli: Bind field " + field.Name + ": unknown option " + strconv.Quote(opt))
+			panic("cli: Bind field " + fieldName + ": unknown option " + strconv.Quote(opt))
 		}
 	}
 	return tag

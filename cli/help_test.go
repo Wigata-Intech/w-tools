@@ -4,6 +4,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -197,6 +198,36 @@ Flags:
   -timeout duration  request timeout (env APP_TIMEOUT) (default "5s")
   -token string      api token (env APP_TOKEN) (default <secret>)
   -verbose           verbose output (env APP_VERBOSE)
+`,
+		},
+		{
+			name: "bound sections and lists list lexicographically by flag name",
+			input: helpInput{
+				cmd: &cli.Command{
+					Name: "app",
+					Flags: func(fs *cli.FlagSet) {
+						fs.Bind(&struct {
+							Log struct {
+								Level string `default:"info" usage:"log level"`
+							}
+							HTTP struct {
+								Addr    string         `cli:"http-addr" default:":8080"               usage:"listen address"`
+								Trusted []netip.Prefix `cli:"trusted"   default:"10.0.0.0/8, ::1/128" usage:"trusted proxies"`
+							}
+							Hosts []string `usage:"allowed hosts"`
+						}{})
+					},
+				},
+				args: []string{"-h"},
+			},
+			expected: `Usage:
+  app [flags]
+
+Flags:
+  -hosts value       allowed hosts (env APP_HOSTS)
+  -http-addr string  listen address (env APP_HTTP_ADDR) (default ":8080")
+  -level string      log level (env APP_LEVEL) (default "info")
+  -trusted value     trusted proxies (env APP_TRUSTED) (default "10.0.0.0/8,::1/128")
 `,
 		},
 		{
