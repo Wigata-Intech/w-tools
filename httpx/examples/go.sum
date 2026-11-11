@@ -1,5 +1,5 @@
-github.com/Wigata-Intech/w-tools/httpx v0.2.3 h1:2FTtbwXJvgRoVXvEhGqJlz7aU4qp3uAG5XIs094RNxI=
-github.com/Wigata-Intech/w-tools/httpx v0.2.3/go.mod h1:v8D/swDRGdWIpaANt3iM5xUDGfi63E70vpV9ggL7Fe4=
+github.com/Wigata-Intech/w-tools/httpx v0.2.4 h1:FgrD2ELaZ1Z1efQrcQB/zLFRqdnZ12BBPXz+A6sSDs8=
+github.com/Wigata-Intech/w-tools/httpx v0.2.4/go.mod h1:v8D/swDRGdWIpaANt3iM5xUDGfi63E70vpV9ggL7Fe4=
 github.com/Wigata-Intech/w-tools/logger v0.2.0 h1:FBsADuavv9oAOepIOXz4/yLf93uUUdOuI9j9SHbRRYg=
 github.com/Wigata-Intech/w-tools/logger v0.2.0/go.mod h1:ZY7Q4MxHHkCHvy46QsOVnSsb/84Y2tHacczAIebvNu4=
 github.com/Wigata-Intech/w-tools/x/circuitbreaker v0.2.0 h1:Pd5QLFlSBCwv7K4/UPIr2L3zrUNJDCNJHMg+p8fEzPw=
