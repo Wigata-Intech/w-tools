@@ -4,6 +4,8 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-11
+
 ### Added
 
 - `Problem.Header` — response headers `Respond` sets before writing (`WWW-Authenticate` on a 401, `Retry-After` on a 503), so a registered or self-describing problem carries them; `Content-Type` and `Content-Length` stay `Respond`'s own, and `json.Marshal` omits the field
