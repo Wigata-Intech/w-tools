@@ -255,6 +255,26 @@ func TestErrorMapRespondRequest(t *testing.T) {
 		})
 	}
 
+	t.Run("Unmapped receives only the error behind the bare 500", func(t *testing.T) {
+		m := newErrorMap()
+		var got []error
+		m.Unmapped = func(_ *http.Request, err error) { got = append(got, err) }
+
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/orders/ord_1", nil)
+		m.RespondRequest(httptest.NewRecorder(), r, errNotFound)
+		m.RespondRequest(httptest.NewRecorder(), r, &quotaError{})
+		rec := httptest.NewRecorder()
+		m.RespondRequest(rec, r, errInternal)
+		m.Respond(httptest.NewRecorder(), errInternal)
+
+		if len(got) != 1 || !errors.Is(got[0], errInternal) {
+			t.Fatalf("Unmapped got %v, want only [errInternal] from RespondRequest", got)
+		}
+		if strings.Contains(rec.Body.String(), "hunter2") {
+			t.Fatalf("body %q leaks the unmapped error", rec.Body.String())
+		}
+	})
+
 	t.Run("Respond never calls Enrich", func(t *testing.T) {
 		m := newErrorMap()
 		m.Enrich = func(_ *http.Request, _ *httpx.Problem) { t.Error("Enrich called from Respond") }

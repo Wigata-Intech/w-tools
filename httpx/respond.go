@@ -39,6 +39,11 @@ type Problem struct {
 	// case-insensitively, is ignored — the standard members always win.
 	// json.Marshal of a Problem omits them.
 	Extensions map[string]any `json:"-"`
+
+	// Header holds response headers Respond sets before writing, such as
+	// WWW-Authenticate or Retry-After; Content-Type and Content-Length
+	// stay Respond's own. json.Marshal of a Problem omits it.
+	Header http.Header `json:"-"`
 }
 
 // marshalProblem encodes the standard members in declaration order, then
@@ -96,6 +101,9 @@ func (p Problem) Respond(w http.ResponseWriter) {
 		b, _ = json.Marshal(p) //nolint:errchkjson // see above; a handled branch would be untestable dead code
 	}
 
+	for k, v := range p.Header {
+		w.Header()[http.CanonicalHeaderKey(k)] = slices.Clone(v)
+	}
 	w.Header().Del("Content-Length")
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(p.Status)

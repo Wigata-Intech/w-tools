@@ -24,6 +24,12 @@ type ErrorMap struct {
 	// this call. Nil leaves problems untouched; Respond never calls it.
 	Enrich func(r *http.Request, p *Problem)
 
+	// Unmapped, when set, receives each error RespondRequest answers with
+	// the bare 500 (matched by neither a Problemer nor the registry; nil
+	// included), so its cause can be logged; the response never carries
+	// it. Respond never calls it.
+	Unmapped func(r *http.Request, err error)
+
 	entries []errorMapping
 }
 
@@ -51,14 +57,18 @@ func (m *ErrorMap) Map(target error, p Problem) {
 // deliberately without err.Error(), which leaks internals into
 // responses.
 func (m *ErrorMap) Respond(w http.ResponseWriter, err error) {
-	m.problem(err).Respond(w)
+	p, _ := m.problem(err)
+	p.Respond(w)
 }
 
 // RespondRequest is Respond with the request in hand: the Problem is
-// resolved exactly as Respond resolves it, then passed through Enrich
-// when one is set.
+// resolved exactly as Respond resolves it, an unmapped error goes to
+// Unmapped, and the Problem passes through Enrich, each when set.
 func (m *ErrorMap) RespondRequest(w http.ResponseWriter, r *http.Request, err error) {
-	p := m.problem(err)
+	p, mapped := m.problem(err)
+	if !mapped && m.Unmapped != nil {
+		m.Unmapped(r, err)
+	}
 	if m.Enrich != nil {
 		p.Extensions = maps.Clone(p.Extensions)
 		if p.Extensions == nil {
@@ -70,17 +80,17 @@ func (m *ErrorMap) RespondRequest(w http.ResponseWriter, r *http.Request, err er
 	p.Respond(w)
 }
 
-func (m *ErrorMap) problem(err error) Problem {
+func (m *ErrorMap) problem(err error) (Problem, bool) {
 	var p Problemer
 	if errors.As(err, &p) {
-		return p.Problem()
+		return p.Problem(), true
 	}
 
 	for _, e := range m.entries {
 		if errors.Is(err, e.target) {
-			return e.problem
+			return e.problem, true
 		}
 	}
 
-	return Problem{Status: http.StatusInternalServerError}
+	return Problem{Status: http.StatusInternalServerError}, false
 }

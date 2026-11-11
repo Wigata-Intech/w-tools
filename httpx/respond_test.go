@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 type respondExpected struct {
 	status      int
 	contentType string
+	header      http.Header // each key checked when set
 	body        string
 }
 
@@ -26,6 +28,11 @@ func assertRespond(t *testing.T, rec *httptest.ResponseRecorder, expected respon
 	}
 	if ct := rec.Header().Get("Content-Type"); ct != expected.contentType {
 		t.Errorf("Content-Type = %q, want %q", ct, expected.contentType)
+	}
+	for k, want := range expected.header {
+		if got := rec.Header().Values(k); !slices.Equal(got, want) {
+			t.Errorf("header %s = %q, want %q", k, got, want)
+		}
 	}
 	if rec.Body.String() != expected.body {
 		t.Errorf("body = %q, want %q", rec.Body.String(), expected.body)
@@ -189,6 +196,22 @@ func TestProblemRespond(t *testing.T) {
 				status:      http.StatusBadRequest,
 				contentType: "application/problem+json",
 				body:        `{"type":"about:blank","title":"Bad Request","status":400}`,
+			},
+		},
+		{
+			name: "headers are set beside the problem, Content-Type stays the problem's",
+			input: httpx.Problem{
+				Status: http.StatusServiceUnavailable,
+				Header: http.Header{
+					"retry-after":  {"5"},
+					"Content-Type": {"text/plain"},
+				},
+			},
+			expected: respondExpected{
+				status:      http.StatusServiceUnavailable,
+				contentType: "application/problem+json",
+				header:      http.Header{"Retry-After": {"5"}},
+				body:        `{"type":"about:blank","title":"Service Unavailable","status":503}`,
 			},
 		},
 	}
