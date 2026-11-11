@@ -1,6 +1,6 @@
 module github.com/Wigata-Intech/w-tools/httpx/examples
 
-go 1.26.8
+go 1.27.4
 
 require (
 	github.com/Wigata-Intech/w-tools/httpx v0.2.2

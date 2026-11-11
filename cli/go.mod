@@ -1,3 +1,3 @@
 module github.com/Wigata-Intech/w-tools/cli
 
-go 1.26.8
+go 1.27.4

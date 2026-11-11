@@ -1,6 +1,6 @@
 module github.com/Wigata-Intech/w-tools/x/hasher
 
-go 1.26.8
+go 1.27.4
 
 require golang.org/x/crypto v0.58.0
 

@@ -4,6 +4,10 @@ All notable changes to `cli`. Format follows [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Changed
+
+- Go floor raised from 1.26.8 to 1.27.4: govulncheck finds GO-2026-6859 (an HTTP/1 server crash from a `MaxBytesReader` header race in `net/http`) in every Go 1.27 release before 1.27.4
+
 ## [0.2.1] - 2026-09-28
 
 ### Added

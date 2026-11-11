@@ -119,7 +119,7 @@ ok  	github.com/Wigata-Intech/w-tools/x/sshx	3.778s
 | One command, pooled `Managed` | ~110µs, 138 allocs | The self-healing wrapper's mutex acquisition and error classification vanish into the round-trip — parity within noise, identical allocations |
 | 16-host fleet, cold start to all-Ready | ~4ms total | Sixteen full handshakes through the shared dial semaphore |
 
-Structural costs: one background goroutine per live connection (keepalive) plus one per `Managed` (maintenance loop), both exiting on close; and the module requires Go 1.26.8+ with `golang.org/x/crypto` — the one dependency this repo's policy admits, scoped to `x/` modules implementing a protocol the standard library doesn't.
+Structural costs: one background goroutine per live connection (keepalive) plus one per `Managed` (maintenance loop), both exiting on close; and the module requires Go 1.27.4+ with `golang.org/x/crypto` — the one dependency this repo's policy admits, scoped to `x/` modules implementing a protocol the standard library doesn't.
 
 ## The promises
 

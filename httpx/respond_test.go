@@ -212,7 +212,7 @@ func TestProblemRespond(t *testing.T) {
 		const want = `{"type":"about:blank","title":"Not Found","status":404,"request_id":"abc"}`
 
 		b, err := json.Marshal(withID{
-			Problem:   httpx.Problem{Type: "about:blank", Title: "Not Found", Status: http.StatusNotFound},
+			Type: "about:blank", Title: "Not Found", Status: http.StatusNotFound,
 			RequestID: "abc",
 		})
 		if err != nil {

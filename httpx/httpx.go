@@ -76,7 +76,7 @@ func New(cfg Config) *Server {
 	mux := http.NewServeMux()
 
 	return &Server{
-		group: group{mux: mux},
+		mux: mux,
 		srv: &http.Server{
 			Addr:              cfg.Addr,
 			ReadHeaderTimeout: cfg.ReadHeaderTimeout,

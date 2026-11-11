@@ -4,6 +4,12 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-11
+
+### Changed
+
+- Go floor raised from 1.26.8 to 1.27.4: govulncheck finds GO-2026-6859 (an HTTP/1 server crash from a `MaxBytesReader` header race in `net/http`) in every Go 1.27 release before 1.27.4
+
 ### Added
 
 - `middleware.IdempotencyConfig.Scope` — namespaces each key by the request's tenant (`"<Prefix><Scope(r)>:<key>"`), so two tenants sending the same key never share a record. A covered request whose scope is empty is refused with 500 before the handler runs
