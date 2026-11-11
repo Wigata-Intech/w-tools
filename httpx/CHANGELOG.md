@@ -4,6 +4,8 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-11
+
 ### Added
 
 - `middleware.RecoverConfig.OmitPath` — leaves the request path out of the panic record, for routes whose path carries a secret (a payment-link token). The record still names the route
