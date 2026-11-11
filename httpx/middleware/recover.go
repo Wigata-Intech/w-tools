@@ -15,10 +15,18 @@ type RecoverConfig struct {
 
 	// ErrorWriter writes the 500. Nil means an RFC 9457 Problem.
 	ErrorWriter httpx.ErrorWriter
+
+	// OmitPath leaves the request path out of the panic record. Set it
+	// when a path can carry a secret (a link token): the record still
+	// names the matched route pattern.
+	OmitPath bool
 }
 
 // Recover turns handler panics into logged 500 responses instead of dead
-// connections. http.ErrAbortHandler is re-panicked, honoring its
+// connections. The record carries the method, the path (unless
+// OmitPath) and the matched route pattern when the router has set one
+// on the request Recover holds (no middleware between Recover and the
+// router copied it). http.ErrAbortHandler is re-panicked, honoring its
 // abort-silently contract. The 500 is written only when no response
 // header has gone out yet.
 func Recover(cfg RecoverConfig) httpx.Middleware {
@@ -47,12 +55,18 @@ func Recover(cfg RecoverConfig) httpx.Middleware {
 					panic(p)
 				}
 
-				log.ErrorContext(r.Context(), "panic recovered",
+				attrs := []any{
 					"panic", p,
 					"stack", string(debug.Stack()),
 					"method", r.Method,
-					"path", r.URL.Path,
-				)
+				}
+				if !cfg.OmitPath {
+					attrs = append(attrs, "path", r.URL.Path)
+				}
+				if r.Pattern != "" {
+					attrs = append(attrs, "pattern", r.Pattern)
+				}
+				log.ErrorContext(r.Context(), "panic recovered", attrs...)
 
 				if !sw.sent {
 					errorWriter(sw, r, http.StatusInternalServerError, "internal error")
