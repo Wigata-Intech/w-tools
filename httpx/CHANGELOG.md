@@ -4,6 +4,8 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-12
+
 ### Added
 
 - `middleware.IdempotencyConfig.ValidKey` — decides whether a key is accepted; a rejected key is answered 400 before the body is read or the store is touched. `DefaultIdempotencyMaxKey` (255)
