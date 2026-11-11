@@ -67,9 +67,17 @@ type IdempotencyConfig struct {
 	// construction without one.
 	Store Store
 
-	// Prefix namespaces every store key: "<Prefix><Idempotency-Key>".
+	// Prefix namespaces every store key: "<Prefix><Idempotency-Key>"
+	// (with Scope: "<Prefix><Scope(r)>:<Idempotency-Key>").
 	// Set it per service or route group when stores are shared.
 	Prefix string
+
+	// Scope, when set, namespaces each key by the request's tenant (an
+	// account, a merchant): "<Prefix><Scope(r)>:<Idempotency-Key>", so
+	// the same key from two tenants never shares a record. A covered
+	// request whose Scope is "" is refused with 500 before the handler
+	// runs.
+	Scope func(*http.Request) string
 
 	// Header carries the client's key. Default DefaultIdempotencyHeader.
 	Header string
@@ -178,6 +186,16 @@ func Idempotency(cfg IdempotencyConfig) httpx.Middleware {
 				return
 			}
 
+			storeKey := cfg.Prefix + key
+			if cfg.Scope != nil {
+				scope := cfg.Scope(r)
+				if scope == "" {
+					errorWriter(w, r, http.StatusInternalServerError, "idempotency scope unavailable")
+					return
+				}
+				storeKey = cfg.Prefix + scope + ":" + key
+			}
+
 			r.Body = http.MaxBytesReader(w, r.Body, maxReqBody)
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -193,7 +211,6 @@ func Idempotency(cfg IdempotencyConfig) httpx.Middleware {
 			r.Body = io.NopCloser(bytes.NewReader(body))
 
 			fp := fingerprint(r.Method, r.URL.RequestURI(), body)
-			storeKey := cfg.Prefix + key
 
 			claim, _ := json.Marshal(record{Fingerprint: fp, InFlight: true})
 			claimed, err := cfg.Store.SetNX(r.Context(), storeKey, claim, ttl)
