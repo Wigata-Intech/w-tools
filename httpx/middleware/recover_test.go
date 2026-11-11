@@ -26,6 +26,9 @@ func TestRecover(t *testing.T) {
 
 	type recoverInput struct {
 		nilLog      bool
+		omitPath    bool
+		pattern     string // when set, handler is routed by a ServeMux under it
+		path        string // request path; default "/boom"
 		errorWriter httpx.ErrorWriter
 		handler     http.HandlerFunc
 	}
@@ -35,6 +38,7 @@ func TestRecover(t *testing.T) {
 		body        string // exact match when set
 		contentType string
 		logContains []string
+		logAbsent   []string
 		logEmpty    bool
 		logDefault  bool // panic record lands on slog.Default instead
 		repanic     bool
@@ -167,6 +171,36 @@ func TestRecover(t *testing.T) {
 				logContains: []string{"wrapping"},
 			},
 		},
+		{
+			name: "routed panic logs the matched pattern beside the path",
+			input: recoverInput{
+				pattern: "GET /pay/{token}",
+				path:    "/pay/s3cret-token",
+				handler: func(_ http.ResponseWriter, _ *http.Request) {
+					panic("boom")
+				},
+			},
+			expected: recoverExpected{
+				status:      http.StatusInternalServerError,
+				logContains: []string{`"pattern":"GET /pay/{token}"`, `"path":"/pay/s3cret-token"`},
+			},
+		},
+		{
+			name: "OmitPath keeps a path secret out of the record, the pattern still names the route",
+			input: recoverInput{
+				omitPath: true,
+				pattern:  "GET /pay/{token}",
+				path:     "/pay/s3cret-token",
+				handler: func(_ http.ResponseWriter, _ *http.Request) {
+					panic("boom")
+				},
+			},
+			expected: recoverExpected{
+				status:      http.StatusInternalServerError,
+				logContains: []string{"panic recovered", `"pattern":"GET /pay/{token}"`},
+				logAbsent:   []string{"s3cret-token", `"path"`},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -177,15 +211,25 @@ func TestRecover(t *testing.T) {
 
 			log, buf := logCapture()
 
-			cfg := middleware.RecoverConfig{ErrorWriter: tt.input.errorWriter}
+			cfg := middleware.RecoverConfig{ErrorWriter: tt.input.errorWriter, OmitPath: tt.input.omitPath}
 			if !tt.input.nilLog {
 				cfg.Log = log
 			}
 
-			h := middleware.Recover(cfg)(tt.input.handler)
+			var next http.Handler = tt.input.handler
+			if tt.input.pattern != "" {
+				mux := http.NewServeMux()
+				mux.Handle(tt.input.pattern, tt.input.handler)
+				next = mux
+			}
+			h := middleware.Recover(cfg)(next)
 
+			path := tt.input.path
+			if path == "" {
+				path = "/boom"
+			}
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/boom", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
 
 			var repanicked any
 
@@ -212,6 +256,11 @@ func TestRecover(t *testing.T) {
 			for _, want := range tt.expected.logContains {
 				if !strings.Contains(buf.String(), want) {
 					t.Errorf("log %q does not contain %q", buf.String(), want)
+				}
+			}
+			for _, unwanted := range tt.expected.logAbsent {
+				if strings.Contains(buf.String(), unwanted) {
+					t.Errorf("log %q contains %q", buf.String(), unwanted)
 				}
 			}
 			if tt.expected.logDefault && !strings.Contains(defaultBuf.String(), "panic recovered") {
