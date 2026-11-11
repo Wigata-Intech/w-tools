@@ -21,6 +21,10 @@ const DefaultMaxRecords = 65536
 // IdempotencyConfig.Header is empty.
 const DefaultIdempotencyHeader = "Idempotency-Key"
 
+// DefaultIdempotencyMaxKey caps an idempotency key's length when
+// IdempotencyConfig.ValidKey is nil.
+const DefaultIdempotencyMaxKey = 255
+
 // DefaultIdempotencyTTL bounds an idempotency record's lifetime when
 // IdempotencyConfig.TTL is unset.
 const DefaultIdempotencyTTL = 24 * time.Hour

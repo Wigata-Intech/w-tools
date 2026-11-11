@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -133,6 +134,40 @@ func TestIdempotency(t *testing.T) {
 			executions: 0,
 		},
 		{
+			name:       "key of DefaultIdempotencyMaxKey visible bytes is accepted",
+			input:      idemInput{method: http.MethodPost, key: strings.Repeat("k", middleware.DefaultIdempotencyMaxKey)},
+			expected:   http.StatusCreated,
+			executions: 1,
+		},
+		{
+			name:       "key over DefaultIdempotencyMaxKey bytes is a 400",
+			input:      idemInput{method: http.MethodPost, key: strings.Repeat("k", middleware.DefaultIdempotencyMaxKey+1)},
+			expected:   http.StatusBadRequest,
+			executions: 0,
+		},
+		{
+			name:       "key with a space is a 400",
+			input:      idemInput{method: http.MethodPost, key: "k 1"},
+			expected:   http.StatusBadRequest,
+			executions: 0,
+		},
+		{
+			name:       "key with a non-ASCII byte is a 400",
+			input:      idemInput{method: http.MethodPost, key: "k\x80"},
+			expected:   http.StatusBadRequest,
+			executions: 0,
+		},
+		{
+			name: "custom ValidKey replaces the default rule",
+			input: idemInput{
+				cfg:    middleware.IdempotencyConfig{ValidKey: func(key string) bool { return key == "only-this" }},
+				method: http.MethodPost,
+				key:    "k-other",
+			},
+			expected:   http.StatusBadRequest,
+			executions: 0,
+		},
+		{
 			name:       "lowercase configured method is normalized",
 			input:      idemInput{cfg: middleware.IdempotencyConfig{Methods: []string{"post"}}, method: http.MethodPost, key: "k-lower"},
 			expected:   http.StatusCreated,
@@ -165,6 +200,8 @@ func TestIdempotency(t *testing.T) {
 	t.Run("handler writing nothing stores an empty 200", testIdempotencyHandlerWritingNothingStoresAnEmpty200)
 
 	t.Run("per-response headers are not replayed", testIdempotencyPerresponseHeadersAreNotReplayed)
+
+	t.Run("headers outer middleware set are not stored, so a replay keeps its own", testIdempotencyHeadersOuterMiddlewareSetAreNotStored)
 
 	t.Run("unreadable request body is a 400", testIdempotencyUnreadableRequestBodyIsA400)
 
@@ -274,6 +311,34 @@ func testIdempotencyPerresponseHeadersAreNotReplayed(t *testing.T) {
 	}
 	if got := second.Header().Get("Connection"); got != "" {
 		t.Fatalf("replayed Connection = %q, want absent", got)
+	}
+}
+
+func testIdempotencyHeadersOuterMiddlewareSetAreNotStored(t *testing.T) {
+	idempotent := middleware.Idempotency(middleware.IdempotencyConfig{Store: middleware.NewMemoryStore(0)})(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-Kept", "yes")
+			w.Header().Set("X-Overwritten", "handler")
+			w.WriteHeader(http.StatusCreated)
+		}))
+	var n atomic.Int64
+	outer := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Request-ID", "req-"+strconv.FormatInt(n.Add(1), 10))
+		w.Header().Set("X-Overwritten", "outer")
+		idempotent.ServeHTTP(w, r)
+	})
+
+	idemRequest(outer, http.MethodPost, "/orders", "k-outer", `{}`)
+	second := idemRequest(outer, http.MethodPost, "/orders", "k-outer", `{}`)
+
+	if got := second.Header().Get("X-Request-ID"); got != "req-2" {
+		t.Fatalf("replayed X-Request-ID = %q, want req-2 (the duplicate's own)", got)
+	}
+	if got := second.Header().Get("X-Kept"); got != "yes" {
+		t.Fatalf("replayed X-Kept = %q, want yes", got)
+	}
+	if got := second.Header().Get("X-Overwritten"); got != "handler" {
+		t.Fatalf("replayed X-Overwritten = %q, want handler", got)
 	}
 }
 

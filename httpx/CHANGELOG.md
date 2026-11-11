@@ -4,6 +4,15 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- `middleware.IdempotencyConfig.ValidKey` — decides whether a key is accepted; a rejected key is answered 400 before the body is read or the store is touched. `DefaultIdempotencyMaxKey` (255)
+
+### Changed
+
+- `middleware.Idempotency` refuses keys longer than `DefaultIdempotencyMaxKey` bytes or with a byte outside visible ASCII (0x21–0x7E) with 400 when `ValidKey` is nil. Before, any key up to the server's header limit was stored, so a client could fill the store's records with keys of many kilobytes each
+- `middleware.Idempotency` stores and replays only the headers the handler set: a header outer middleware set before it (a request ID, security headers) is no longer replayed, so a duplicate keeps its own `X-Request-ID`
+
 ## [0.2.4] - 2026-11-11
 
 ### Added
