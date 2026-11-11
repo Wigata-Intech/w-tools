@@ -4,6 +4,10 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- `middleware.IdempotencyConfig.Scope` — namespaces each key by the request's tenant (`"<Prefix><Scope(r)>:<key>"`), so two tenants sending the same key never share a record. A covered request whose scope is empty is refused with 500 before the handler runs
+
 ## [0.2.2] - 2026-11-11
 
 ### Added

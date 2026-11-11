@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -197,6 +198,8 @@ func TestIdempotency(t *testing.T) {
 	t.Run("custom ErrorWriter shapes refusals", testIdempotencyCustomErrorWriterShapesRefusals)
 
 	t.Run("prefix namespaces the store key", testIdempotencyPrefixNamespacesTheStoreKey)
+	t.Run("scope namespaces the store key per tenant", testIdempotencyScopeNamespacesTheStoreKeyPerTenant)
+	t.Run("empty scope fails closed with 500", testIdempotencyEmptyScopeFailsClosedWith500)
 
 	t.Run("custom header and statuses are honored", testIdempotencyCustomHeaderAndStatusesAreHonored)
 
@@ -566,6 +569,59 @@ func testIdempotencyPrefixNamespacesTheStoreKey(t *testing.T) {
 	defer store.mu.Unlock()
 	if len(store.keys) != 1 || store.keys[0] != "orders:k-13" {
 		t.Fatalf("store keys = %v, want [orders:k-13]", store.keys)
+	}
+}
+
+func testIdempotencyScopeNamespacesTheStoreKeyPerTenant(t *testing.T) {
+	store := newSpyStore()
+	executions := new(atomic.Int64)
+	handler := middleware.Idempotency(middleware.IdempotencyConfig{
+		Store:  store,
+		Prefix: "orders:",
+		Scope:  func(r *http.Request) string { return r.Header.Get("X-Tenant") },
+	})(countingHandler(executions))
+
+	for _, tenant := range []string{"t-1", "t-2"} {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/orders", strings.NewReader(`{}`))
+		req.Header.Set(middleware.DefaultIdempotencyHeader, "k-15")
+		req.Header.Set("X-Tenant", tenant)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusCreated {
+			t.Fatalf("tenant %s: status = %d, want 201", tenant, rr.Code)
+		}
+	}
+
+	if got := executions.Load(); got != 2 {
+		t.Fatalf("executions = %d, want 2 (one per tenant)", got)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if !slices.Contains(store.keys, "orders:t-1:k-15") || !slices.Contains(store.keys, "orders:t-2:k-15") {
+		t.Fatalf("store keys = %v, want orders:t-1:k-15 and orders:t-2:k-15", store.keys)
+	}
+}
+
+func testIdempotencyEmptyScopeFailsClosedWith500(t *testing.T) {
+	store := newSpyStore()
+	executions := new(atomic.Int64)
+	handler := middleware.Idempotency(middleware.IdempotencyConfig{
+		Store: store,
+		Scope: func(*http.Request) string { return "" },
+	})(countingHandler(executions))
+
+	rr := idemRequest(handler, http.MethodPost, "/orders", "k-16", `{}`)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rr.Code)
+	}
+	if got := executions.Load(); got != 0 {
+		t.Fatalf("executions = %d, want 0", got)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.keys) != 0 {
+		t.Fatalf("store keys = %v, want none", store.keys)
 	}
 }
 
