@@ -82,6 +82,12 @@ type IdempotencyConfig struct {
 	// Header carries the client's key. Default DefaultIdempotencyHeader.
 	Header string
 
+	// ValidKey decides whether a non-empty key is accepted; a rejected
+	// key is answered 400 before the body is read or the store is
+	// touched. Nil accepts 1 to DefaultIdempotencyMaxKey bytes of visible
+	// ASCII (0x21-0x7E).
+	ValidKey func(key string) bool
+
 	// Methods covered by the middleware. Default POST only.
 	Methods []string
 
@@ -146,6 +152,11 @@ func Idempotency(cfg IdempotencyConfig) httpx.Middleware {
 		ttl = DefaultIdempotencyTTL
 	}
 
+	validKey := cfg.ValidKey
+	if validKey == nil {
+		validKey = visibleASCIIKey
+	}
+
 	maxBody := cfg.MaxBodyBytes
 	if maxBody <= 0 {
 		maxBody = DefaultIdempotencyMaxBody
@@ -183,6 +194,11 @@ func Idempotency(cfg IdempotencyConfig) httpx.Middleware {
 
 				next.ServeHTTP(w, r)
 
+				return
+			}
+
+			if !validKey(key) {
+				errorWriter(w, r, http.StatusBadRequest, "invalid "+header+" header")
 				return
 			}
 
@@ -228,6 +244,7 @@ func Idempotency(cfg IdempotencyConfig) httpx.Middleware {
 			// disconnecting, so it runs on an uncancelable context.
 			bg := context.WithoutCancel(r.Context())
 
+			before := w.Header().Clone()
 			cw := &captureWriter{ResponseWriter: w, max: maxBody}
 			defer func() {
 				if p := recover(); p != nil {
@@ -251,7 +268,7 @@ func Idempotency(cfg IdempotencyConfig) httpx.Middleware {
 			stored, _ := json.Marshal(record{
 				Fingerprint: fp,
 				Status:      status,
-				Header:      storableHeader(w.Header()),
+				Header:      storableHeader(w.Header(), before),
 				Body:        bytes.Clone(cw.body.Bytes()),
 			})
 			// A failed Set leaves the claim in place: duplicates get
@@ -325,10 +342,13 @@ var perResponseHeaders = []string{ //nolint:gochecknoglobals // package constant
 	"Te", "Trailer", "Transfer-Encoding", "Upgrade", "Date", "Content-Length",
 }
 
-func storableHeader(h http.Header) http.Header {
+// storableHeader returns the headers of h the handler set: those absent
+// from before (the headers outer middleware set, such as a request ID)
+// or changed since, minus perResponseHeaders.
+func storableHeader(h, before http.Header) http.Header {
 	stored := make(http.Header, len(h))
 	for k, vv := range h {
-		if slices.Contains(perResponseHeaders, http.CanonicalHeaderKey(k)) {
+		if slices.Contains(perResponseHeaders, http.CanonicalHeaderKey(k)) || slices.Equal(vv, before[k]) {
 			continue
 		}
 		stored[k] = slices.Clone(vv)
@@ -384,4 +404,19 @@ func (w *captureWriter) Write(b []byte) (int, error) {
 
 func (w *captureWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
+}
+
+// visibleASCIIKey is the default ValidKey: 1 to DefaultIdempotencyMaxKey
+// bytes, each visible ASCII.
+func visibleASCIIKey(key string) bool {
+	if len(key) > DefaultIdempotencyMaxKey {
+		return false
+	}
+	for i := range len(key) {
+		if key[i] < 0x21 || key[i] > 0x7e {
+			return false
+		}
+	}
+
+	return true
 }

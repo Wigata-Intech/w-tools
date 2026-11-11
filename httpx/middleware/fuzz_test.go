@@ -143,6 +143,14 @@ func FuzzIdempotency(f *testing.F) {
 			return
 		}
 
+		if !defaultValidKey(key) {
+			if first.Code != http.StatusBadRequest || second.Code != http.StatusBadRequest || executions != 0 {
+				t.Fatalf("invalid key %q: statuses %d, %d and %d executions, want 400, 400 and 0", key, first.Code, second.Code, executions)
+			}
+
+			return
+		}
+
 		if body1 == body2 {
 			if executions != 1 {
 				t.Fatalf("identical duplicate executed handler %d times, want 1", executions)
@@ -219,4 +227,19 @@ func FuzzStrictRequestID(f *testing.F) {
 			t.Fatalf("rejected ID %q replaced by %q, want 32-char lowercase hex", inbound, echoed)
 		}
 	})
+}
+
+// defaultValidKey mirrors Idempotency's default key rule: 1 to
+// DefaultIdempotencyMaxKey bytes of visible ASCII.
+func defaultValidKey(key string) bool {
+	if len(key) > middleware.DefaultIdempotencyMaxKey {
+		return false
+	}
+	for i := range len(key) {
+		if key[i] < 0x21 || key[i] > 0x7e {
+			return false
+		}
+	}
+
+	return true
 }
