@@ -4,6 +4,8 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-21
+
 ### Added
 
 - `client.Config.CheckRedirect` — passed to the inner `http.Client` with the same semantics: nil follows up to 10 redirects; returning `http.ErrUseLastResponse` answers a redirect with the 3xx response as is, so no request or credential follows its `Location`
