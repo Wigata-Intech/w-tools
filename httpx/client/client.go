@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strings"
 	"time"
 
@@ -40,6 +41,8 @@ type Config struct {
 	// Timeout is the total per-attempt time. Zero means DefaultTimeout.
 	Timeout time.Duration
 
+	// MaxIdleConnsPerHost zero scales with GOMAXPROCS, read once by New:
+	// IdleConnsPerProc per proc, floor DefaultMaxIdleConnsPerHost.
 	MaxIdleConnsPerHost int
 	IdleConnTimeout     time.Duration
 
@@ -49,6 +52,11 @@ type Config struct {
 	// the caller owns it fully. Public APIs need nothing here: servers
 	// present their certificates and the OS trust store verifies them.
 	TLS *tls.Config
+
+	// CheckRedirect is http.Client.CheckRedirect: nil follows up to 10
+	// redirects. Returning http.ErrUseLastResponse answers a redirect
+	// with the 3xx as is, so no request or credential follows Location.
+	CheckRedirect func(req *http.Request, via []*http.Request) error
 
 	// Breaker is consulted per request when set. Nil = no breaking.
 	Breaker Breaker
@@ -89,7 +97,7 @@ func New(cfg Config) *Client {
 		cfg.Timeout = DefaultTimeout
 	}
 	if cfg.MaxIdleConnsPerHost == 0 {
-		cfg.MaxIdleConnsPerHost = DefaultMaxIdleConnsPerHost
+		cfg.MaxIdleConnsPerHost = max(DefaultMaxIdleConnsPerHost, IdleConnsPerProc*runtime.GOMAXPROCS(0))
 	}
 	if cfg.IdleConnTimeout == 0 {
 		cfg.IdleConnTimeout = DefaultIdleConnTimeout
@@ -125,7 +133,7 @@ func New(cfg Config) *Client {
 	}
 
 	return &Client{
-		hc:      &http.Client{Transport: tr, Timeout: cfg.Timeout},
+		hc:      &http.Client{Transport: tr, Timeout: cfg.Timeout, CheckRedirect: cfg.CheckRedirect},
 		breaker: cfg.Breaker,
 		log:     cfg.Log,
 		logReq:  cfg.LogRequestBody,

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -200,6 +201,30 @@ func TestNew(t *testing.T) {
 		})
 	}
 
+	t.Run("zero MaxIdleConnsPerHost scales with GOMAXPROCS above the floor", func(t *testing.T) {
+		prev := runtime.GOMAXPROCS(0)
+		t.Cleanup(func() { runtime.GOMAXPROCS(prev) })
+
+		runtime.GOMAXPROCS(1)
+		if got := client.New(client.Config{}).MaxIdleConnsPerHost(); got != client.DefaultMaxIdleConnsPerHost {
+			t.Errorf("GOMAXPROCS=1: MaxIdleConnsPerHost = %d, want the floor %d", got, client.DefaultMaxIdleConnsPerHost)
+		}
+
+		runtime.GOMAXPROCS(8)
+		if got := client.New(client.Config{}).MaxIdleConnsPerHost(); got != 256 {
+			t.Errorf("GOMAXPROCS=8: MaxIdleConnsPerHost = %d, want 256", got)
+		}
+	})
+
+	t.Run("positive MaxIdleConnsPerHost is used as is", func(t *testing.T) {
+		prev := runtime.GOMAXPROCS(8)
+		t.Cleanup(func() { runtime.GOMAXPROCS(prev) })
+
+		if got := client.New(client.Config{MaxIdleConnsPerHost: 7}).MaxIdleConnsPerHost(); got != 7 {
+			t.Errorf("MaxIdleConnsPerHost = %d, want 7", got)
+		}
+	})
+
 	t.Run("custom TLS config trusts a private CA the default rejects", func(t *testing.T) {
 		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -220,6 +245,54 @@ func TestNew(t *testing.T) {
 			t.Fatalf("Get() with the private CA = %v, want success", err)
 		}
 		_ = resp.Body.Close()
+	})
+
+	t.Run("nil CheckRedirect follows the redirect", func(t *testing.T) {
+		es := newEchoServer(t)
+		hop := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, es.URL+"/final", http.StatusFound)
+		}))
+		t.Cleanup(hop.Close)
+
+		resp, err := client.New(client.Config{}).Get(context.Background(), hop.URL)
+		if err != nil {
+			t.Fatalf("Get() = %v", err)
+		}
+		_ = resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK || resp.Request.URL.Path != "/final" {
+			t.Errorf("got %d from %s, want 200 from /final", resp.StatusCode, resp.Request.URL.Path)
+		}
+		if got := es.hits.Load(); got != 1 {
+			t.Errorf("redirect target hits = %d, want 1", got)
+		}
+	})
+
+	t.Run("CheckRedirect returning ErrUseLastResponse answers the 3xx as is", func(t *testing.T) {
+		es := newEchoServer(t)
+		hop := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, es.URL+"/final", http.StatusFound)
+		}))
+		t.Cleanup(hop.Close)
+
+		c := client.New(client.Config{CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}})
+		resp, err := c.Get(context.Background(), hop.URL)
+		if err != nil {
+			t.Fatalf("Get() = %v", err)
+		}
+		_ = resp.Body.Close()
+
+		if resp.StatusCode != http.StatusFound {
+			t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusFound)
+		}
+		if got := resp.Header.Get("Location"); got != es.URL+"/final" {
+			t.Errorf("Location = %q, want %q", got, es.URL+"/final")
+		}
+		if got := es.hits.Load(); got != 0 {
+			t.Errorf("redirect target hits = %d, want 0", got)
+		}
 	})
 }
 

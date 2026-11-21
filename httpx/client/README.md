@@ -10,9 +10,10 @@
 go get github.com/Wigata-Intech/w-tools/httpx
 ```
 
-- Pooling tuned for services: 100 idle connections per host (stdlib default: 2), TLS 1.2+ with session cache, `Config.TLS` for internal CAs/mTLS
+- Pooling tuned for services: idle connections per host scale with GOMAXPROCS, 32 per proc with a floor of 100 (stdlib default: 2), set `Config.MaxIdleConnsPerHost` to fix it, TLS 1.2+ with session cache, `Config.TLS` for internal CAs/mTLS
 - A mandatory timeout — a hung upstream can't hang your goroutine
 - `Config.Breaker` seam: anything with `Allow() error` / `Record(err error)` plugs in; `x/circuitbreaker` satisfies it natively; open circuit → `ErrCircuitOpen` in nanoseconds
+- `Config.CheckRedirect`: the redirect policy, as on `http.Client`; return `http.ErrUseLastResponse` to answer a 3xx as is, so credentials never follow `Location`
 - Outbound `traceparent` with fresh span ids; a caller-set header is never overwritten
 - Opt-in request/response logging where redaction follows your logger: query strings logged as parsed maps (`?api_key=` redacts), response capture `Content-Length`-gated so streaming/SSE is never buffered
 - Ctx-first verbs including RFC 10008 `QUERY`
