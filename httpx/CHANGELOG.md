@@ -4,6 +4,15 @@ All notable changes to `httpx` are documented here. Format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- `client.Config.CheckRedirect` — passed to the inner `http.Client` with the same semantics: nil follows up to 10 redirects; returning `http.ErrUseLastResponse` answers a redirect with the 3xx response as is, so no request or credential follows its `Location`
+- `client.IdleConnsPerProc` (32)
+
+### Changed
+
+- `client.New`: when `Config.MaxIdleConnsPerHost` is 0, idle connections per host scale with GOMAXPROCS (`max(DefaultMaxIdleConnsPerHost, IdleConnsPerProc*runtime.GOMAXPROCS(0))`, read once by `New`); `DefaultMaxIdleConnsPerHost` (100) is now the floor. A positive value is used as is
+
 ## [0.2.5] - 2026-11-12
 
 ### Added
